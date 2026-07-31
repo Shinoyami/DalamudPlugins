@@ -1,5 +1,7 @@
 using System;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Game.Command;
+using Dalamud.Game.Gui.Dtr;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.UI;
@@ -11,26 +13,29 @@ namespace AutoRaiseAccept;
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     private const string Command = "/ara";
-    private static readonly TimeSpan ReturnToStartDelay = TimeSpan.FromMinutes(2);
 
     private readonly IDalamudPluginInterface pluginInterface;
     private readonly IFramework framework;
     private readonly IObjectTable objectTable;
+    private readonly IDtrBar dtrBar;
     private readonly IGameGui gameGui;
     private readonly ICommandManager commandManager;
     private readonly IChatGui chatGui;
     private readonly IPluginLog log;
     private readonly Configuration configuration;
+    private readonly IDtrBarEntry dtrEntry;
 
     private DateTime? deadDetectedAt;
     private DateTime? playerRaiseDetectedAt;
     private RevivePromptKind currentPromptKind;
     private bool handledCurrentPrompt;
+    private bool settingsWindowOpen;
 
     public Plugin(
         IDalamudPluginInterface pluginInterface,
         IFramework framework,
         IObjectTable objectTable,
+        IDtrBar dtrBar,
         IGameGui gameGui,
         ICommandManager commandManager,
         IChatGui chatGui,
@@ -39,24 +44,38 @@ public sealed unsafe class Plugin : IDalamudPlugin
         this.pluginInterface = pluginInterface;
         this.framework = framework;
         this.objectTable = objectTable;
+        this.dtrBar = dtrBar;
         this.gameGui = gameGui;
         this.commandManager = commandManager;
         this.chatGui = chatGui;
         this.log = log;
 
         configuration = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+        configuration.Migrate();
+        Save();
+
+        dtrEntry = dtrBar.Get("Auto Raise Accept");
+        dtrEntry.OnClick = _ => ToggleEnabled();
+        UpdateDtrEntry();
 
         commandManager.AddHandler(Command, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Auto Raise Accept: on, off, status, or delay <milliseconds>."
+            HelpMessage = "Open Auto Raise Accept settings, or use: on, off, status, delay <milliseconds>."
         });
         framework.Update += OnFrameworkUpdate;
+        pluginInterface.UiBuilder.Draw += DrawSettings;
+        pluginInterface.UiBuilder.OpenConfigUi += OpenSettings;
+        pluginInterface.UiBuilder.OpenMainUi += OpenSettings;
     }
 
     public void Dispose()
     {
         framework.Update -= OnFrameworkUpdate;
+        pluginInterface.UiBuilder.Draw -= DrawSettings;
+        pluginInterface.UiBuilder.OpenConfigUi -= OpenSettings;
+        pluginInterface.UiBuilder.OpenMainUi -= OpenSettings;
         commandManager.RemoveHandler(Command);
+        dtrBar.Remove("Auto Raise Accept");
     }
 
     private void OnCommand(string command, string arguments)
@@ -64,7 +83,10 @@ public sealed unsafe class Plugin : IDalamudPlugin
         var parts = arguments.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0 || parts[0].Equals("status", StringComparison.OrdinalIgnoreCase))
         {
-            PrintStatus();
+            if (parts.Length == 0)
+                settingsWindowOpen = true;
+            else
+                PrintStatus();
             return;
         }
 
@@ -72,6 +94,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         {
             configuration.Enabled = true;
             Save();
+            UpdateDtrEntry();
             chatGui.Print("[Auto Raise Accept] Enabled.");
             return;
         }
@@ -81,6 +104,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
             configuration.Enabled = false;
             ResetDeathState();
             Save();
+            UpdateDtrEntry();
             chatGui.Print("[Auto Raise Accept] Disabled.");
             return;
         }
@@ -94,13 +118,13 @@ public sealed unsafe class Plugin : IDalamudPlugin
             return;
         }
 
-        chatGui.Print("[Auto Raise Accept] Usage: /ara [on|off|status|delay <0-10000>]");
+        chatGui.Print("[Auto Raise Accept] Usage: /ara [on|off|status|delay <0-10000>]. Use /ara with no argument for settings.");
     }
 
     private void PrintStatus()
     {
         var state = configuration.Enabled ? "enabled" : "disabled";
-        chatGui.Print($"[Auto Raise Accept] {state}; player Raise delay {configuration.DelayMilliseconds} ms; return delay 2 minutes.");
+        chatGui.Print($"[Auto Raise Accept] {state}; player Raise delay {configuration.DelayMilliseconds} ms; return delay {configuration.ReturnDelaySeconds} seconds.");
     }
 
     private void Save() => pluginInterface.SavePluginConfig(configuration);
@@ -159,7 +183,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
                 if ((DateTime.UtcNow - playerRaiseDetectedAt.Value).TotalMilliseconds < configuration.DelayMilliseconds)
                     return;
             }
-            else if (DateTime.UtcNow - deadDetectedAt.Value < ReturnToStartDelay)
+            else if (DateTime.UtcNow - deadDetectedAt.Value < TimeSpan.FromSeconds(configuration.ReturnDelaySeconds))
             {
                 return;
             }
@@ -173,7 +197,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
             handledCurrentPrompt = true;
             log.Information(promptKind == RevivePromptKind.PlayerRaise
                 ? "Accepted incoming player Raise."
-                : "Accepted return to the starting point after two minutes without a player Raise.");
+                : $"Accepted return to the starting point after {configuration.ReturnDelaySeconds} seconds without a player Raise.");
         }
         catch (Exception ex)
         {
@@ -204,6 +228,75 @@ public sealed unsafe class Plugin : IDalamudPlugin
     {
         deadDetectedAt = null;
         ResetPromptState();
+    }
+
+    private void OpenSettings() => settingsWindowOpen = true;
+
+    private void ToggleEnabled()
+    {
+        configuration.Enabled = !configuration.Enabled;
+        if (!configuration.Enabled)
+            ResetDeathState();
+        Save();
+        UpdateDtrEntry();
+        chatGui.Print($"[Auto Raise Accept] {(configuration.Enabled ? "Enabled" : "Disabled")}.");
+    }
+
+    private void UpdateDtrEntry()
+    {
+        dtrEntry.Text = $"Auto Raise: {(configuration.Enabled ? "On" : "Off")}";
+        dtrEntry.Tooltip = "Click to turn Auto Raise Accept on or off.";
+        dtrEntry.Shown = configuration.ShowDtrBar;
+    }
+
+    private void DrawSettings()
+    {
+        if (!settingsWindowOpen)
+            return;
+
+        ImGui.SetNextWindowSize(new System.Numerics.Vector2(430, 210), ImGuiCond.FirstUseEver);
+        if (!ImGui.Begin("Auto Raise Accept settings", ref settingsWindowOpen))
+        {
+            ImGui.End();
+            return;
+        }
+
+        var enabled = configuration.Enabled;
+        if (ImGui.Checkbox("Enable Auto Raise Accept", ref enabled))
+        {
+            configuration.Enabled = enabled;
+            if (!enabled)
+                ResetDeathState();
+            Save();
+            UpdateDtrEntry();
+        }
+
+        var showDtrBar = configuration.ShowDtrBar;
+        if (ImGui.Checkbox("Show DTR bar On/Off toggle", ref showDtrBar))
+        {
+            configuration.ShowDtrBar = showDtrBar;
+            Save();
+            UpdateDtrEntry();
+        }
+
+        var returnDelay = configuration.ReturnDelaySeconds;
+        ImGui.SetNextItemWidth(120);
+        if (ImGui.InputInt("Return wait after death (seconds)", ref returnDelay))
+        {
+            configuration.ReturnDelaySeconds = Math.Clamp(returnDelay, 0, 3600);
+            Save();
+        }
+        ImGui.TextDisabled($"Current return wait: {configuration.ReturnDelaySeconds / 60}:{configuration.ReturnDelaySeconds % 60:00}");
+
+        var raiseDelay = configuration.DelayMilliseconds;
+        ImGui.SetNextItemWidth(120);
+        if (ImGui.InputInt("Player Raise click delay (milliseconds)", ref raiseDelay))
+        {
+            configuration.DelayMilliseconds = Math.Clamp(raiseDelay, 0, 10000);
+            Save();
+        }
+
+        ImGui.End();
     }
 
     private enum RevivePromptKind

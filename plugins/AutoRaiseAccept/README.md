@@ -1,11 +1,16 @@
 # Auto Raise Accept
 
-A minimal Dalamud API 15 plugin that automatically clicks the first physical
-button (`Accept`) on an active incoming Raise dialog.
+A Dalamud API 15 plugin that accepts incoming player Raises automatically. It
+keeps the duty return-to-start prompt open until the configured timeout expires.
+
+The settings window controls whether the plugin is enabled, whether its clickable
+On/Off toggle appears in the DTR bar, the return timeout, and the player Raise
+click delay.
 
 Commands:
 
-- `/ara` or `/ara status`
+- `/ara` opens settings
+- `/ara status`
 - `/ara on`
 - `/ara off`
 - `/ara delay 250`
