@@ -971,7 +971,7 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 788u,
             IsBuiltIn = true,
-            PresetRevision = 4,
+            PresetRevision = 5,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1YJX933Fe6MeNv06QVQfRUI3oJVfCvm4OqOyLCSjcAJk/edit?gid=1960553822#gid=1960553822",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments aligned to BossMod Reborn phase-relative timings with automatic checkpoint and phase resynchronization.",
             Phases =
@@ -1200,6 +1200,7 @@ internal static class BuiltInPresets
                 Item(1433, "Zoe + Eukrasian Prognosis + Kerachole + Panhaima", "Dragon King Thordan: Akh Morn 3", "SGE", "Shield Healer"),
                 Item(1433, "Neutral", "Dragon King Thordan: Akh Morn 3", "AST", "Pure Healer"),
                 Item(1433, "Feint", "Dragon King Thordan: Akh Morn 3", "Any Job", "Melee 2 (M2) (D2)"),
+                ..DsrTankPersonals(),
             ]
         },
         new FightPlan
@@ -1590,7 +1591,7 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 1006u,
             IsBuiltIn = true,
-            PresetRevision = 3,
+            PresetRevision = 4,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1M1LHe4mpb1lyxkLWJxrDwe_JH897nickG3XLTtwnI90/edit?gid=58668446#gid=58668446",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments aligned to the encounter timeline with automatic phase resynchronization.",
             Phases =
@@ -1845,6 +1846,7 @@ internal static class BuiltInPresets
                 Item(1062, "Zoe + Eukrasian Prognosis + Kerachole", "Pandora: Akh Morn 3", "SGE", "Shield Healer"),
                 Item(1062, "Feint", "Pandora: Akh Morn 3", "Any Job", "Melee 2 (M2) (D2)"),
                 Item(1062, "Addle", "Pandora: Akh Morn 3", "Any Job", "Caster (R2) (D4)"),
+                ..FruTankPersonals(),
             ]
         },
         new FightPlan
@@ -2281,6 +2283,233 @@ internal static class BuiltInPresets
             ]
         },
     ];
+
+    private static IEnumerable<TimelineItem> FruTankPersonals()
+    {
+        var result = new List<TimelineItem>();
+        var plans = new[]
+        {
+            ("WAR", "DRK", "MT"), ("DRK", "WAR", "OT"), ("DRK", "WAR", "MT"), ("WAR", "DRK", "OT"),
+            ("WAR", "GNB", "MT"), ("GNB", "WAR", "OT"), ("GNB", "WAR", "MT"), ("WAR", "GNB", "OT"),
+            ("WAR", "PLD", "MT"), ("PLD", "WAR", "OT"), ("PLD", "WAR", "MT"), ("WAR", "PLD", "OT"),
+            ("GNB", "DRK", "MT"), ("DRK", "GNB", "OT"),
+            ("GNB", "PLD", "MT"), ("PLD", "GNB", "OT"), ("PLD", "GNB", "MT"), ("GNB", "PLD", "OT"),
+            ("PLD", "DRK", "MT"), ("DRK", "PLD", "OT"),
+        };
+
+        foreach (var (job, coTank, role) in plans)
+            AddPlan(job, coTank, role);
+        return result;
+
+        void Add(int time, string skill, string mechanic, string job, string coTank, string role)
+        {
+            if (string.IsNullOrWhiteSpace(skill))
+                return;
+            var item = Item(time, skill, $"Tank personal plan: {mechanic}", job, role);
+            item.TargetCoTankJob = coTank;
+            result.Add(item);
+        }
+
+        void AddPlan(string job, string coTank, string role)
+        {
+            var isMainTank = role == "MT";
+            Add(24, isMainTank ? "Invulnerability" : string.Empty, "P1 Powder Mark Trail 1", job, coTank, role);
+            Add(40, "Rampart + 90s + Short Mit", "P1 Burn Mark 1", job, coTank, role);
+            Add(122, isMainTank ? "40% + Late Rampart + 90s + Short Mit" : "Buddy Mit" + (job == "DRK" ? " + Oblation" : string.Empty),
+                "P1 Powder Mark Trail 2", job, coTank, role);
+            Add(143, isMainTank
+                    ? job switch { "WAR" => "Rampart", "GNB" => "Rampart + 90s", _ => "Rampart + Short Mit" }
+                    : "40% + Rampart + 90s + Buddy Mit" + (job == "DRK" ? " + Oblation" : string.Empty),
+                "P1 Burn Mark 2", job, coTank, role);
+
+            Add(168, !isMainTank ? "Invulnerability" : string.Empty, "P2 Quadruple Slap", job, coTank, role);
+
+            var blackHalo = isMainTank
+                ? job == "GNB" && coTank == "DRK" ? "Invulnerability + Kitchen Sink" : "Kitchen Sink"
+                : "Buddy Mit" + (job == "DRK" ? " + Oblation" : string.Empty);
+            Add(512, blackHalo, "P3 Black Halo", job, coTank, role);
+
+            var darkestDance = (job, coTank, role) switch
+            {
+                ("DRK", "WAR", "OT") or ("WAR", "DRK", "OT") or
+                ("GNB", "WAR", "OT") or ("WAR", "GNB", "OT") => "Invulnerability",
+                (_, _, "OT") => "Kitchen Sink",
+                ("GNB", "DRK", "MT") or ("PLD", "DRK", "MT") or
+                ("GNB", "PLD", "MT") or ("PLD", "GNB", "MT") or
+                ("WAR", "PLD", "MT") or ("PLD", "WAR", "MT") => "Buddy Mit",
+                _ => string.Empty,
+            };
+            Add(562, darkestDance, "P3 Darkest Dance", job, coTank, role);
+
+            var somberDance = (job, coTank, role) switch
+            {
+                ("WAR", "PLD", _) => "Invulnerability",
+                ("GNB", "PLD", _) => "Invulnerability",
+                (_, _, "MT") when (job == "WAR" || job == "DRK") && coTank is "WAR" or "DRK" => "Invulnerability",
+                (_, _, "MT") when (job == "WAR" || job == "GNB") && coTank is "WAR" or "GNB" => "Invulnerability",
+                ("DRK", "GNB", "OT") or ("DRK", "PLD", "OT") => "Invulnerability",
+                _ => string.Empty,
+            };
+            Add(651, somberDance, "P4 Somber Dance", job, coTank, role);
+            Add(645, job is "WAR" or "DRK" ? "40% + 90s" : "40%", "P4 Hallowed Wing", job, coTank, role);
+
+            var wingsOne = job switch
+            {
+                "WAR" => "Invulnerability + Buddy Mit",
+                "DRK" => "Kitchen Sink",
+                "GNB" when coTank == "DRK" => "Invulnerability + Buddy Mit",
+                "PLD" when coTank is "DRK" or "GNB" => "Invulnerability + Buddy Mit",
+                _ => "Kitchen Sink",
+            };
+            var wingsTwo = job switch
+            {
+                "WAR" => "Kitchen Sink",
+                "DRK" => "Invulnerability + Buddy Mit + Oblation",
+                "GNB" when coTank == "DRK" => "Kitchen Sink",
+                "PLD" when coTank is "DRK" or "GNB" => "Kitchen Sink",
+                _ => "Invulnerability + Buddy Mit",
+            };
+            Add(874, wingsOne, "P5 Wings Dark and Light 1", job, coTank, role);
+            Add(970, wingsTwo, "P5 Wings Dark and Light 2", job, coTank, role);
+        }
+    }
+
+    private static IEnumerable<TimelineItem> DsrTankPersonals()
+    {
+        var result = new List<TimelineItem>();
+        var pairs = new[]
+        {
+            ("WAR", "DRK"), ("WAR", "GNB"), ("WAR", "PLD"),
+            ("GNB", "DRK"), ("GNB", "PLD"), ("PLD", "DRK"),
+        };
+
+        foreach (var (first, second) in pairs)
+        {
+            AddJob(first, second);
+            AddJob(second, first);
+        }
+        return result;
+
+        void Add(int time, string skill, string mechanic, string job, string coTank)
+        {
+            if (string.IsNullOrWhiteSpace(skill))
+                return;
+            foreach (var role in new[] { "MT", "OT" })
+            {
+                var item = Item(time, skill, $"Tank personal plan: {mechanic}", job, role);
+                item.TargetCoTankJob = coTank;
+                result.Add(item);
+            }
+        }
+
+        void AddJob(string job, string coTank)
+        {
+            var p2Might1 = job switch
+            {
+                "WAR" => "Invulnerability",
+                "GNB" when coTank == "PLD" => "Invulnerability",
+                "GNB" when coTank == "DRK" => "40% + Short Mit + Reprisal",
+                "PLD" when coTank == "DRK" => "Rampart + 90s + Short Mit + Buddy Mit",
+                "DRK" when coTank is "GNB" or "PLD" => "Buddy Mit + Oblation",
+                _ => string.Empty,
+            };
+            var p2Strength = job switch
+            {
+                "WAR" or "DRK" => "Kitchen Sink",
+                "GNB" when coTank == "DRK" => "Rampart + 90s + Short Mit",
+                "GNB" => "Kitchen Sink",
+                "PLD" when coTank == "DRK" => "40% + Short Mit",
+                "PLD" => "Kitchen Sink + Buddy Mit",
+                _ => string.Empty,
+            };
+            var p2Might2 = job switch
+            {
+                "DRK" => "Invulnerability",
+                "GNB" when coTank == "WAR" => "Invulnerability",
+                "PLD" when coTank is "WAR" or "DRK" => "Invulnerability",
+                _ => string.Empty,
+            };
+            Add(188, p2Might1, "P2 Ascalon's Might 1", job, coTank);
+            Add(199, p2Strength, "P2 Strength of the Ward", job, coTank);
+            Add(254, p2Might2, "P2 Ascalon's Might 2", job, coTank);
+
+            var soulTether = job switch
+            {
+                "WAR" => "Invulnerability + Buddy Mit",
+                "DRK" when coTank == "WAR" => "Kitchen Sink",
+                "DRK" => "Invulnerability + Buddy Mit + Oblation",
+                "PLD" when coTank == "GNB" => "Kitchen Sink + Buddy Mit",
+                _ => "Kitchen Sink",
+            };
+            Add(471, soulTether, "P3 Soul Tether", job, coTank);
+
+            var p5Might1 = job switch
+            {
+                "WAR" => "Invulnerability",
+                "GNB" when coTank == "DRK" => "Invulnerability",
+                "PLD" when coTank is "DRK" or "GNB" => "Invulnerability",
+                _ => string.Empty,
+            };
+            var p5Might2 = job switch
+            {
+                "DRK" => "Invulnerability",
+                "GNB" when coTank == "WAR" => "40% + Short Mit",
+                "GNB" when coTank == "PLD" => "Invulnerability",
+                "PLD" when coTank == "WAR" => "40% + Short Mit + Buddy Mit",
+                "WAR" when coTank is "GNB" or "PLD" => "40% + Short Mit",
+                _ => string.Empty,
+            };
+            Add(781, p5Might1, "P5 Ascalon's Might 1", job, coTank);
+            Add(855, p5Might2, "P5 Ascalon's Might 2", job, coTank);
+
+            var wyrmsbreath1 = job switch
+            {
+                "WAR" when coTank == "DRK" => "40% + Short Mit + Buddy Mit",
+                "WAR" => "Short Mit + Buddy Mit",
+                "DRK" => "40% + Oblation + Short Mit + Buddy Mit",
+                "GNB" => "40% + Short Mit + Buddy Mit",
+                "PLD" => "40% + Short Mit + Buddy Mit",
+                _ => string.Empty,
+            };
+            Add(1005, wyrmsbreath1, "P6 Wyrmsbreath 1", job, coTank);
+            Add(1038, job == "DRK" ? "Rampart + 90s + Oblation + Short Mit" : "Rampart + Short Mit", "P6 Hallowed Wing 1", job, coTank);
+            Add(1097, job == "DRK" ? "90s + Oblation + Short Mit" : "90s + Short Mit", "P6 Hallowed Wing 2", job, coTank);
+            Add(1108, "Rampart + 40%", "P6 Wyrmsbreath 2", job, coTank);
+            Add(1120, job switch
+            {
+                "WAR" => "Invulnerability + Buddy Mit",
+                "DRK" => "Rampart + 40% + Oblation + Short Mit",
+                "PLD" => "Rampart + 40% + Short Mit + Buddy Mit",
+                _ => "Rampart + 40% + Short Mit",
+            }, "P6 Cauterize", job, coTank);
+
+            var akh1 = job switch
+            {
+                "WAR" => "Rampart + Short Mit",
+                "DRK" when coTank != "WAR" => "Rampart + 90s + Oblation + Short Mit",
+                "GNB" when coTank == "PLD" => "Rampart + 90s + Short Mit",
+                _ => "Kitchen Sink",
+            };
+            var akh2 = job switch
+            {
+                "WAR" => "Kitchen Sink",
+                "DRK" when coTank == "WAR" => "Invulnerability + Buddy Mit + Oblation",
+                "GNB" when coTank is "WAR" or "DRK" => "Invulnerability + Buddy Mit",
+                "PLD" => "Invulnerability + Buddy Mit",
+                _ => "Kitchen Sink",
+            };
+            var akh3 = job switch
+            {
+                "WAR" => "Invulnerability + Buddy Mit",
+                "DRK" when coTank != "WAR" => "Invulnerability + Buddy Mit + Oblation",
+                "GNB" when coTank == "PLD" => "Invulnerability + Buddy Mit",
+                _ => "Kitchen Sink",
+            };
+            Add(1274, akh1, "P7 Akh Morn 1", job, coTank);
+            Add(1353, akh2, "P7 Akh Morn 2", job, coTank);
+            Add(1433, akh3, "P7 Akh Morn 3", job, coTank);
+        }
+    }
 
     public static void MergeInto(Configuration configuration)
     {

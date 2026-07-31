@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.Command;
 using Dalamud.Game.ClientState.Conditions;
@@ -29,6 +32,8 @@ public sealed class Plugin : IDalamudPlugin
         "MT", "OT", "Pure Healer (H1)", "Shield Healer (H2)", "Melee 1 (M1) (D1)",
         "Melee 2 (M2) (D2)", "Phys Ranged (R1) (D3)", "Caster (R2) (D4)"
     ];
+
+    private static readonly string[] TankJobs = ["WAR", "PLD", "DRK", "GNB"];
 
     private readonly IDalamudPluginInterface pluginInterface;
     private readonly IFramework framework;
@@ -58,6 +63,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly HashSet<(nint Address, uint StatusId)> activeStatuses = [];
     private readonly HashSet<uint> seenActorDataIds = [];
     private readonly HashSet<string> firedStateTransitions = [];
+    private readonly HashSet<string> playedAudioAlerts = [];
     private PendingTimelineSync? pendingTimelineSync;
     private string currentPhase = string.Empty;
     private string lastSyncStatus = string.Empty;
@@ -162,6 +168,7 @@ public sealed class Plugin : IDalamudPlugin
             seenActorDataIds.Clear();
             firedStateTransitions.Clear();
             pendingTimelineSync = null;
+            playedAudioAlerts.Clear();
         }
         wasInCombat = inCombat;
     }
@@ -342,7 +349,17 @@ public sealed class Plugin : IDalamudPlugin
         if (roleAdjusted)
             selectedRole = DefaultRoleForJob(selectedJob);
         var roleChanged = DrawCombo("Role / slot", availableRoles, ref selectedRole);
-        if (jobChanged || roleChanged || roleAdjusted)
+        var coTankChanged = false;
+        if (TankJobs.Contains(selectedJob))
+        {
+            var selectedCoTankJob = configuration.SelectedCoTankJob;
+            var availableCoTanks = TankJobs.Where(job => job != selectedJob).ToArray();
+            if (!availableCoTanks.Contains(selectedCoTankJob))
+                selectedCoTankJob = availableCoTanks[0];
+            coTankChanged = DrawCombo("Co-tank job", availableCoTanks, ref selectedCoTankJob);
+            configuration.SelectedCoTankJob = selectedCoTankJob;
+        }
+        if (jobChanged || roleChanged || roleAdjusted || coTankChanged)
         {
             configuration.SelectedJob = selectedJob;
             configuration.SelectedRole = selectedRole;
@@ -717,6 +734,36 @@ public sealed class Plugin : IDalamudPlugin
             configuration.KeepSeconds = Math.Clamp(keep, 0, 60);
             Save();
         }
+        var enableAudioAlert = configuration.EnableAudioAlert;
+        if (ImGui.Checkbox("Enable audio alert", ref enableAudioAlert))
+        {
+            configuration.EnableAudioAlert = enableAudioAlert;
+            Save();
+        }
+        if (configuration.EnableAudioAlert)
+        {
+            var audioModes = new[] { "Sound", "Skill names", "Custom" };
+            var audioMode = (int)configuration.AudioAlertMode;
+            ImGui.SetNextItemWidth(180);
+            if (ImGui.Combo("Audio type", ref audioMode, audioModes, audioModes.Length))
+            {
+                configuration.AudioAlertMode = (AudioAlertMode)audioMode;
+                Save();
+            }
+            if (configuration.AudioAlertMode == AudioAlertMode.Custom)
+            {
+                var ttsText = configuration.TtsText;
+                ImGui.SetNextItemWidth(360);
+                if (ImGui.InputText("Custom spoken text", ref ttsText, 256))
+                {
+                    configuration.TtsText = ttsText;
+                    Save();
+                }
+                ImGui.TextDisabled("Use {skills} to insert the skill names into the spoken text.");
+            }
+            if (ImGui.Button("Test audio alert"))
+                PlayConfiguredAudio(["Reprisal"]);
+        }
         var displayModes = new[] { "Skill name", "Skill icon", "Name + icon" };
         var displayMode = (int)configuration.AlertDisplay;
         ImGui.SetNextItemWidth(180);
@@ -770,9 +817,15 @@ public sealed class Plugin : IDalamudPlugin
             .Take(5)
             .ToList();
         if (configuration.TestOverlay)
-            active = [new TimelineItem { Skill = "Reprisal" }, new TimelineItem { Skill = "Shake It Off" }];
+            active =
+            [
+                new TimelineItem { Id = "test-reprisal", Skill = "Reprisal" },
+                new TimelineItem { Id = "test-party-mit", Skill = "Shake It Off" },
+            ];
         if (active.Count == 0)
             return;
+
+        TriggerAlertAudio(active);
 
         ImGui.SetNextWindowSize(new Vector2(260, 0), ImGuiCond.FirstUseEver);
         ImGui.SetNextWindowBgAlpha(configuration.OverlayBackgroundOpacity);
@@ -815,6 +868,65 @@ public sealed class Plugin : IDalamudPlugin
         else if (showIcon && !showName)
             ImGui.TextDisabled("?");
     }
+
+    private void TriggerAlertAudio(IEnumerable<TimelineItem> active)
+    {
+        if (!configuration.EnableAudioAlert)
+            return;
+
+        var newItems = active.Where(item => playedAudioAlerts.Add($"{SelectedFight.Id}:{item.Id}:{item.TimeSeconds}")).ToList();
+        if (newItems.Count == 0)
+            return;
+
+        var skills = newItems
+            .SelectMany(item => ResolveSkills(item.Skill))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        PlayConfiguredAudio(skills);
+    }
+
+    private void PlayConfiguredAudio(IReadOnlyCollection<string> skills)
+    {
+        if (configuration.AudioAlertMode == AudioAlertMode.Sound)
+        {
+            MessageBeep(0x30);
+            return;
+        }
+
+        var skillText = skills.Count == 0 ? "mitigation" : string.Join(", ", skills);
+        var speech = configuration.AudioAlertMode == AudioAlertMode.SkillNames
+            ? skillText
+            : (string.IsNullOrWhiteSpace(configuration.TtsText) ? "Use {skills}" : configuration.TtsText)
+                .Replace("{skills}", skillText, StringComparison.OrdinalIgnoreCase)
+                .Replace("{skill}", skillText, StringComparison.OrdinalIgnoreCase);
+        _ = Task.Run(() => SpeakWithWindowsVoice(speech));
+    }
+
+    private static void SpeakWithWindowsVoice(string text)
+    {
+        object? voice = null;
+        try
+        {
+            var voiceType = Type.GetTypeFromProgID("SAPI.SpVoice");
+            if (voiceType is null)
+                return;
+            voice = Activator.CreateInstance(voiceType);
+            voiceType.InvokeMember("Speak", BindingFlags.InvokeMethod, null, voice, [text, 0]);
+        }
+        catch
+        {
+            // Windows SAPI can be unavailable when no voice is installed; visual alerts must continue normally.
+        }
+        finally
+        {
+            if (voice is not null && Marshal.IsComObject(voice))
+                Marshal.FinalReleaseComObject(voice);
+        }
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool MessageBeep(uint type);
 
     private Vector4 CurrentAlertTextColor()
     {
@@ -965,7 +1077,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         var cleaned = instruction.Trim();
         if (cleaned.Contains("Kitchen Sink", StringComparison.OrdinalIgnoreCase))
-            return ["Rampart", TankMajorCooldown(), TankShortCooldown()];
+            return ["Rampart", TankNinetySecondCooldown(), TankMajorCooldown(), TankShortCooldown()];
         if (ContainsAny(cleaned, "90s", "90 sec", "90-second", "thrill", "bulwark", "dark mind", "camouflage", "camo"))
             return [TankNinetySecondCooldown()];
         if (ContainsAny(cleaned, "2min", "2 min", "2m", "120s", "120 sec", "30%", "40%", "big cd"))
@@ -1079,6 +1191,7 @@ public sealed class Plugin : IDalamudPlugin
                 item.TimeSeconds >= 0 &&
                 (item.TargetJob == "Any Job" || item.TargetJob == configuration.SelectedJob) &&
                 (item.TargetRole == "Any Role" || NormalizeRole(item.TargetRole) == NormalizeRole(configuration.SelectedRole)) &&
+                (item.TargetCoTankJob == "Any Tank" || item.TargetCoTankJob == configuration.SelectedCoTankJob) &&
                 ResolveSkills(item.Skill).Any())
             .OrderBy(item => item.TimeSeconds);
         return CollapseRepeatedSequences(applicable);

@@ -11,6 +11,7 @@ public sealed class Configuration : IPluginConfiguration
     public List<FightPlan> Fights { get; set; } = [FightPlan.CreateDefault()];
     public string SelectedJob { get; set; } = "WAR";
     public string SelectedRole { get; set; } = "MT";
+    public string SelectedCoTankJob { get; set; } = "DRK";
     public bool AutoStartWithCombat { get; set; } = true;
     public bool ShowOverlay { get; set; } = true;
     public float OverlayOpacity { get; set; } = 1f;
@@ -20,6 +21,9 @@ public sealed class Configuration : IPluginConfiguration
     public float[] OverlayGlowColor { get; set; } = [1f, 0.72f, 0.08f, 1f];
     public int LeadSeconds { get; set; } = 6;
     public int KeepSeconds { get; set; } = 4;
+    public bool EnableAudioAlert { get; set; }
+    public AudioAlertMode AudioAlertMode { get; set; } = AudioAlertMode.Sound;
+    public string TtsText { get; set; } = "Use {skills}";
     public AlertDisplayMode AlertDisplay { get; set; } = AlertDisplayMode.NameAndIcon;
     public bool TestOverlay { get; set; }
 
@@ -48,6 +52,9 @@ public sealed class Configuration : IPluginConfiguration
             OverlayGlowColor = [1f, 0.72f, 0.08f, 1f];
         LeadSeconds = Math.Clamp(LeadSeconds, 0, 60);
         KeepSeconds = Math.Clamp(KeepSeconds, 0, 60);
+        TtsText ??= "Use {skills}";
+        if (SelectedCoTankJob is not ("WAR" or "PLD" or "DRK" or "GNB") || SelectedCoTankJob == SelectedJob)
+            SelectedCoTankJob = SelectedJob == "DRK" ? "WAR" : "DRK";
         for (var index = 0; index < 4; index++)
         {
             OverlayTextColor[index] = Math.Clamp(OverlayTextColor[index], 0f, 1f);
@@ -151,4 +158,12 @@ public sealed class TimelineItem
     public string Note { get; set; } = string.Empty;
     public string TargetJob { get; set; } = "Any Job";
     public string TargetRole { get; set; } = "Any Role";
+    public string TargetCoTankJob { get; set; } = "Any Tank";
+}
+
+public enum AudioAlertMode
+{
+    Sound,
+    SkillNames,
+    Custom,
 }
