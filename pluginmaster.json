@@ -1,0 +1,32 @@
+[
+  {
+    "Author": "Shinoyami",
+    "Name": "Auto Raise Accept",
+    "InternalName": "AutoRaiseAccept",
+    "AssemblyVersion": "1.0.0.0",
+    "Description": "Automatically clicks Accept on FFXIV's incoming Raise dialog. Detection uses the game's active resurrection agent and does not depend on the raising player's name.",
+    "ApplicableVersion": "any",
+    "DalamudApiLevel": 15,
+    "TestingDalamudApiLevel": 15,
+    "Punchline": "Automatically accepts incoming raises.",
+    "Tags": [
+      "utility",
+      "raise"
+    ],
+    "CategoryTags": [
+      "utility"
+    ],
+    "LoadRequiredState": 0,
+    "LoadSync": false,
+    "CanUnloadAsync": false,
+    "LoadPriority": 0,
+    "IsTestingExclusive": false,
+    "AcceptsFeedback": true,
+    "RepoUrl": "https://github.com/Shinoyami/DalamudPlugins",
+    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/AutoRaiseAccept-v1.0.0.0/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/AutoRaiseAccept-v1.0.0.0/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/AutoRaiseAccept-v1.0.0.0/latest.zip",
+    "TestingAssemblyVersion": "1.0.0.0",
+    "Changelog": "Initial release. Automatically accepts incoming Raise dialogs with a configurable delay."
+  }
+]

@@ -1,0 +1,12 @@
+{
+  "Author": "Shinoyami",
+  "Name": "Auto Raise Accept",
+  "Punchline": "Automatically accepts incoming raises.",
+  "Description": "Automatically clicks the Accept button on FFXIV's incoming Raise dialog. Use /ara to configure it.",
+  "InternalName": "AutoRaiseAccept",
+  "ApplicableVersion": "any",
+  "Tags": [
+    "utility",
+    "raise"
+  ]
+}
