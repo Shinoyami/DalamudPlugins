@@ -24,7 +24,7 @@ Commands: `/ara`, `/ara on`, `/ara off`, and `/ara delay <milliseconds>`.
 
 Displays editable fight timelines, filters assignments by selected job and party
 slot, and shows advance mitigation warnings. Default mitigation plans are based
-on Ikuya's sheets where available. Use `/mitplan` to configure it.
+on PF / Ikuya / NAUR mitigation strategies where available. Use `/mitplan` to configure it.
 
 ## Disclaimer
 

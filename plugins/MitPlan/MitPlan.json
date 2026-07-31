@@ -1,8 +1,8 @@
 {
   "Author": "Shinoyami",
   "Name": "MitPlan",
-  "Punchline": "Ikuya-based mitigation timelines in-game.",
-  "Description": "Displays editable job/role-specific mitigation reminders using default plans based on Ikuya's mitigation sheets where available.",
+  "Punchline": "PF / Ikuya / NAUR mitigation timelines in-game.",
+  "Description": "Displays editable job/role-specific mitigation reminders using default plans based on PF, Ikuya, and NAUR mitigation strategies where available.",
   "InternalName": "MitPlan",
   "ApplicableVersion": "any",
   "Tags": ["combat", "mitigation", "timeline", "utility"]

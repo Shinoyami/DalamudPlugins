@@ -312,7 +312,25 @@ public sealed class Plugin : IDalamudPlugin
         DrawEntryEditor();
 
         DrawSectionHeader($"{SelectedFight.Name} timeline");
-        DrawTimelineEditor();
+        if (configuration.SelectedRole is "MT" or "OT" && configuration.SelectedJob is "WAR" or "PLD" or "DRK" or "GNB")
+        {
+            if (ImGui.BeginTabBar("MitPlanTimelineTabs"))
+            {
+                if (ImGui.BeginTabItem("Party Mit"))
+                {
+                    DrawTimelineEditor(false);
+                    ImGui.EndTabItem();
+                }
+                if (ImGui.BeginTabItem("Personal Mit"))
+                {
+                    DrawTimelineEditor(true);
+                    ImGui.EndTabItem();
+                }
+                ImGui.EndTabBar();
+            }
+        }
+        else
+            DrawTimelineEditor(null);
 
         DrawSectionHeader("Timer and overlay");
         DrawTimerControls();
@@ -384,7 +402,7 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         if (currentFight.IsBuiltIn)
-            ImGui.TextWrapped("Default mitigation assignments are based on Ikuya's sheets where available.");
+            ImGui.TextWrapped("Default mitigation assignments are based on PF / Ikuya / NAUR mitigation strategies where available.");
         if (!string.IsNullOrWhiteSpace(currentFight.PresetStatus))
             ImGui.TextWrapped(currentFight.PresetStatus);
         if (!string.IsNullOrWhiteSpace(currentFight.SourceUrl))
@@ -483,7 +501,7 @@ public sealed class Plugin : IDalamudPlugin
         CancelEdit();
     }
 
-    private void DrawTimelineEditor()
+    private void DrawTimelineEditor(bool? personalOnly)
     {
         var fight = SelectedFight;
         if (fight.Timeline.Count == 0)
@@ -493,7 +511,8 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         string? deleteId = null;
-        if (ImGui.BeginTable("FightTimeline", 7,
+        var tableId = personalOnly == true ? "PersonalMitTimeline" : "FightTimeline";
+        if (ImGui.BeginTable(tableId, 7,
                 ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY,
                 new Vector2(0, 260)))
         {
@@ -506,7 +525,12 @@ public sealed class Plugin : IDalamudPlugin
             ImGui.TableSetupColumn("Delete", ImGuiTableColumnFlags.WidthFixed, 58);
             ImGui.TableHeadersRow();
 
-            var orderedItems = ApplicableTimeline().ToList();
+            var orderedItems = ApplicableTimeline()
+                .Where(item => personalOnly is null ||
+                    (personalOnly.Value
+                        ? IsTankPersonalMit(item)
+                        : ResolveSkills(item.Skill).Any(skill => !IsResolvedTankPersonalSkill(skill))))
+                .ToList();
             var phases = fight.Phases.OrderBy(phase => phase.StartSeconds).ToList();
             var nextPhase = 0;
             foreach (var item in orderedItems)
@@ -520,7 +544,7 @@ public sealed class Plugin : IDalamudPlugin
                 ImGui.TableNextColumn(); ImGui.Text(item.TimeSeconds < 0 ? "Untimed" : FormatTime(item.TimeSeconds));
                 ImGui.TableNextColumn(); ImGui.Text(item.TargetJob == "Any Job" ? "Any" : item.TargetJob);
                 ImGui.TableNextColumn(); ImGui.Text(item.TargetRole == "Any Role" ? "Any" : ShortRole(item.TargetRole));
-                ImGui.TableNextColumn(); ImGui.TextWrapped(ResolveInstruction(item.Skill));
+                ImGui.TableNextColumn(); ImGui.TextWrapped(ResolveInstruction(item.Skill, personalOnly));
                 ImGui.TableNextColumn(); ImGui.TextWrapped(item.Note);
                 ImGui.TableNextColumn();
                 if (ImGui.SmallButton($"Edit##{item.Id}"))
@@ -656,8 +680,7 @@ public sealed class Plugin : IDalamudPlugin
                 ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoTitleBar))
         {
             foreach (var skill in active
-                         .SelectMany(item => SplitSkills(item.Skill))
-                         .Select(ResolveSkillName)
+                         .SelectMany(item => ResolveSkills(item.Skill))
                          .Distinct(StringComparer.OrdinalIgnoreCase))
                 DrawSkillAlert(skill);
         }
@@ -737,10 +760,119 @@ public sealed class Plugin : IDalamudPlugin
         };
     }
 
+    private IEnumerable<string> ResolveSkills(string instruction) =>
+        SplitSkills(instruction).SelectMany(ResolveSkillNames);
+
+    private IEnumerable<string> ResolveSkillNames(string instruction)
+    {
+        var cleaned = instruction.Trim();
+        if (cleaned.Contains("Kitchen Sink", StringComparison.OrdinalIgnoreCase))
+            return ["Rampart", TankMajorCooldown(), TankShortCooldown()];
+        if (ContainsAny(cleaned, "90s", "90 sec", "90-second", "thrill", "bulwark", "dark mind", "camouflage", "camo"))
+            return [TankNinetySecondCooldown()];
+        if (ContainsAny(cleaned, "2min", "2 min", "2m", "120s", "120 sec", "30%", "big cd"))
+            return [TankMajorCooldown()];
+        if (ContainsAny(cleaned, "fast cd", "small cd", "short cd", "short", "25s", "25 sec"))
+            return [TankShortCooldown()];
+        if (ContainsAny(cleaned, "invuln", "holmgang", "hallowed ground", "living dead", "superbolide", "bolide"))
+            return [TankInvulnerability()];
+        if (ContainsAny(cleaned, "thrill of battle", "bulwark", "dark mind", "camouflage"))
+            return [TankNinetySecondCooldown()];
+        if (ContainsAny(cleaned, "vengeance", "damnation", "sentinel", "guardian", "shadow wall", "shadowed vigil", "nebula", "great nebula"))
+            return [TankMajorCooldown()];
+        if (ContainsAny(cleaned, "raw intuition", "bloodwhetting", "sheltron", "the blackest night", "tbn", "heart of stone", "heart of corundum", "hoc"))
+            return [TankShortCooldown()];
+        if (cleaned.Contains("Buddy Mit", StringComparison.OrdinalIgnoreCase))
+            return [TankBuddyCooldown()];
+        if (cleaned.Contains("Nascent", StringComparison.OrdinalIgnoreCase))
+            return ["Nascent Flash"];
+        if (cleaned.Contains("Oblation", StringComparison.OrdinalIgnoreCase))
+            return ["Oblation"];
+        if (cleaned.Contains("Intervention", StringComparison.OrdinalIgnoreCase))
+            return ["Intervention"];
+        if (cleaned.Contains("Equilibrium", StringComparison.OrdinalIgnoreCase))
+            return ["Equilibrium"];
+        if (cleaned.Contains("Aurora", StringComparison.OrdinalIgnoreCase))
+            return ["Aurora"];
+        if (cleaned.Contains("Rampart", StringComparison.OrdinalIgnoreCase))
+            return ["Rampart"];
+        return [ResolveSkillName(cleaned)];
+    }
+
+    private static bool ContainsAny(string value, params string[] terms) =>
+        terms.Any(term => value.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+    private string TankNinetySecondCooldown() => configuration.SelectedJob switch
+    {
+        "WAR" => "Thrill of Battle",
+        "PLD" => "Bulwark",
+        "DRK" => "Dark Mind",
+        "GNB" => "Camouflage",
+        _ => "90s Personal Mit",
+    };
+
+    private bool UsesLevelHundredTankActions() => SelectedFight.Id is "fru" or "dmu" or "m9s" or "m10s" or "m11s" or "m12s";
+
+    private bool UsesEndwalkerTankActions() => SelectedFight.Id is "dsr" or "top" or "fru" or "dmu" or "m9s" or "m10s" or "m11s" or "m12s";
+
+    private string TankMajorCooldown() => configuration.SelectedJob switch
+    {
+        "WAR" => UsesLevelHundredTankActions() ? "Damnation" : "Vengeance",
+        "PLD" => UsesLevelHundredTankActions() ? "Guardian" : "Sentinel",
+        "DRK" => UsesLevelHundredTankActions() ? "Shadowed Vigil" : "Shadow Wall",
+        "GNB" => UsesLevelHundredTankActions() ? "Great Nebula" : "Nebula",
+        _ => "2min Personal Mit",
+    };
+
+    private string TankShortCooldown() => configuration.SelectedJob switch
+    {
+        "WAR" => UsesEndwalkerTankActions() ? "Bloodwhetting" : "Raw Intuition",
+        "PLD" => UsesEndwalkerTankActions() ? "Holy Sheltron" : "Sheltron",
+        "DRK" => "The Blackest Night",
+        "GNB" => UsesEndwalkerTankActions() ? "Heart of Corundum" : "Heart of Stone",
+        _ => "Short Personal Mit",
+    };
+
+    private string TankInvulnerability() => configuration.SelectedJob switch
+    {
+        "WAR" => "Holmgang",
+        "PLD" => "Hallowed Ground",
+        "DRK" => "Living Dead",
+        "GNB" => "Superbolide",
+        _ => "Invulnerability",
+    };
+
+    private string TankBuddyCooldown() => configuration.SelectedJob switch
+    {
+        "WAR" => "Nascent Flash",
+        "PLD" => "Intervention",
+        "DRK" => "The Blackest Night",
+        "GNB" => TankShortCooldown(),
+        _ => "Buddy Mit",
+    };
+
     private string ResolveInstruction(string instruction) => string.Join(" + ",
-        SplitSkills(instruction)
-            .Select(ResolveSkillName)
+        ResolveSkills(instruction)
             .Distinct(StringComparer.OrdinalIgnoreCase));
+
+    private string ResolveInstruction(string instruction, bool? personalOnly)
+    {
+        var skills = ResolveSkills(instruction);
+        if (personalOnly is not null)
+            skills = skills.Where(skill => IsResolvedTankPersonalSkill(skill) == personalOnly.Value);
+        return string.Join(" + ", skills.Distinct(StringComparer.OrdinalIgnoreCase));
+    }
+
+    private bool IsTankPersonalMit(TimelineItem item)
+    {
+        if (item.TargetRole is not ("MT" or "OT"))
+            return false;
+        return ResolveSkills(item.Skill).Any(IsResolvedTankPersonalSkill);
+    }
+
+    private bool IsResolvedTankPersonalSkill(string skill) => ContainsAny(skill,
+        "Rampart", TankNinetySecondCooldown(), TankMajorCooldown(), TankShortCooldown(), TankInvulnerability(),
+        TankBuddyCooldown(), "Nascent Flash", "Oblation", "Intervention", "Equilibrium", "Aurora");
 
     private IEnumerable<TimelineItem> ApplicableTimeline() =>
         SelectedFight.Timeline

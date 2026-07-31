@@ -33,12 +33,12 @@
     "Author": "Shinoyami",
     "Name": "MitPlan",
     "InternalName": "MitPlan",
-    "AssemblyVersion": "1.1.1.0",
-    "Description": "Displays editable job/role-specific mitigation reminders using default plans based on Ikuya's mitigation sheets where available.",
+    "AssemblyVersion": "1.2.0.0",
+    "Description": "Displays editable job/role-specific mitigation reminders using default plans based on PF, Ikuya, and NAUR mitigation strategies where available.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
     "TestingDalamudApiLevel": 15,
-    "Punchline": "Ikuya-based mitigation timelines in-game.",
+    "Punchline": "PF / Ikuya / NAUR mitigation timelines in-game.",
     "Tags": ["combat", "mitigation", "timeline", "utility"],
     "CategoryTags": ["utility"],
     "LoadRequiredState": 0,
@@ -48,10 +48,10 @@
     "IsTestingExclusive": false,
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Shinoyami/DalamudPlugins",
-    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.1.1.0/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.1.1.0/latest.zip",
-    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.1.1.0/latest.zip",
-    "TestingAssemblyVersion": "1.1.1.0",
-    "Changelog": "Filters the timeline by selected role and healer job, resolves generic Party Mit instructions to the selected job's current action, and uses current high-resolution PvE action icons."
+    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.0/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.0/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.0/latest.zip",
+    "TestingAssemblyVersion": "1.2.0.0",
+    "Changelog": "Replaces Ultimate presets with PF / Ikuya / NAUR mitigation plans, corrects phase timing and resynchronization, and adds job- and level-aware tank Personal Mit reminders."
   }
 ]

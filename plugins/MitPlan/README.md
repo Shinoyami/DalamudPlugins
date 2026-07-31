@@ -2,12 +2,12 @@
 
 MitPlan displays editable fight timelines and mitigation assignments for the
 player's selected job and party slot. The built-in/default mitigation plans are
-based on Ikuya's mitigation sheets where available.
+based on PF / Ikuya / NAUR mitigation strategies where available.
 
 ## Features
 
 - Includes editable presets for supported Savage and Ultimate fights.
-- Uses Ikuya's mitigation assignments where a public sheet is available.
+- Uses PF / Ikuya / NAUR mitigation assignments where a public sheet is available.
 - Supports all requested combat jobs and MT, OT, healer, D1-D4 slots.
 - Automatically starts at combat entry and resynchronizes at fight phases.
 - Configurable advance warning and alert persistence.

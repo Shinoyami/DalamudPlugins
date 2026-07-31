@@ -44,6 +44,7 @@ public sealed class FightPlan
     public string Category { get; set; } = "Custom";
     public uint ContentFinderConditionId { get; set; }
     public bool IsBuiltIn { get; set; }
+    public int PresetRevision { get; set; }
     public string SourceUrl { get; set; } = string.Empty;
     public string PresetStatus { get; set; } = string.Empty;
     public List<FightPhase> Phases { get; set; } = [];
