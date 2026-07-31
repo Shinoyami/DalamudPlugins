@@ -33,12 +33,12 @@
     "Author": "Shinoyami",
     "Name": "MitPlan",
     "InternalName": "MitPlan",
-    "AssemblyVersion": "1.0.0.0",
-    "Description": "Reads phase tabs from a public Google Sheet and displays job/role-specific mitigation reminders on an encounter timer.",
+    "AssemblyVersion": "1.1.0.0",
+    "Description": "Displays editable job/role-specific mitigation reminders using default plans based on Ikuya's mitigation sheets where available.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
     "TestingDalamudApiLevel": 15,
-    "Punchline": "Google Sheets mitigation timelines in-game.",
+    "Punchline": "Ikuya-based mitigation timelines in-game.",
     "Tags": ["combat", "mitigation", "timeline", "utility"],
     "CategoryTags": ["utility"],
     "LoadRequiredState": 0,
@@ -48,10 +48,10 @@
     "IsTestingExclusive": false,
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Shinoyami/DalamudPlugins",
-    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.0.0.0/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.0.0.0/latest.zip",
-    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.0.0.0/latest.zip",
-    "TestingAssemblyVersion": "1.0.0.0",
-    "Changelog": "Initial release with Google Sheets CSV loading, P1-P5 parsing, job/slot filtering, timer controls, phase sync, and mitigation alerts."
+    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.1.0.0/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.1.0.0/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.1.0.0/latest.zip",
+    "TestingAssemblyVersion": "1.1.0.0",
+    "Changelog": "Adds editable built-in Ikuya mitigation presets, job/role filtering, compact skill alerts, and automatic phase synchronization for supported Savage and Ultimate fights."
   }
 ]
