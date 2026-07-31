@@ -1,8 +1,8 @@
 {
   "Author": "Shinoyami",
   "Name": "MitPlan",
-  "Punchline": "Google Sheets mitigation timelines in-game.",
-  "Description": "Reads phase tabs from a public Google Sheet and displays job/role-specific mitigation reminders on an encounter timer.",
+  "Punchline": "Ikuya-based mitigation timelines in-game.",
+  "Description": "Displays editable job/role-specific mitigation reminders using default plans based on Ikuya's mitigation sheets where available.",
   "InternalName": "MitPlan",
   "ApplicableVersion": "any",
   "Tags": ["combat", "mitigation", "timeline", "utility"]

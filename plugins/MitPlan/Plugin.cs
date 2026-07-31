@@ -383,6 +383,8 @@ public sealed class Plugin : IDalamudPlugin
             Save();
         }
 
+        if (currentFight.IsBuiltIn)
+            ImGui.TextWrapped("Default mitigation assignments are based on Ikuya's sheets where available.");
         if (!string.IsNullOrWhiteSpace(currentFight.PresetStatus))
             ImGui.TextWrapped(currentFight.PresetStatus);
         if (!string.IsNullOrWhiteSpace(currentFight.SourceUrl))
