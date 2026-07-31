@@ -1036,6 +1036,19 @@ public sealed class Plugin : IDalamudPlugin
         if (lookup.Equals("Spreadlo", StringComparison.OrdinalIgnoreCase))
             lookup = "Adloquium";
         var actions = dataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>();
+        if (IsLimitBreakInstruction(lookup))
+        {
+            var limitBreakActionId = dataManager.GetExcelSheet<Lumina.Excel.Sheets.GeneralAction>()
+                .Where(row => row.RowId == 3u)
+                .Select(row => row.Action.RowId)
+                .FirstOrDefault();
+            iconId = actions
+                .Where(row => row.RowId == limitBreakActionId)
+                .Select(row => row.Icon)
+                .FirstOrDefault();
+            if (iconId != 0)
+                return true;
+        }
         var exact = actions
             .Where(row => row.IsPlayerAction && !row.IsPvP &&
                           row.Name.ToString().Equals(lookup, StringComparison.OrdinalIgnoreCase))
@@ -1054,6 +1067,11 @@ public sealed class Plugin : IDalamudPlugin
         }
         return iconId != 0;
     }
+
+    private static bool IsLimitBreakInstruction(string value) =>
+        value.Contains("Limit Break", StringComparison.OrdinalIgnoreCase) ||
+        System.Text.RegularExpressions.Regex.IsMatch(value, @"\bLB\s*3\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     private static IEnumerable<string> SplitSkills(string value) => value
         .Replace("â†’", "+").Replace("→", "+")

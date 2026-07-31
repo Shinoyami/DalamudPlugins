@@ -33,7 +33,7 @@
     "Author": "Shinoyami",
     "Name": "MitPlan",
     "InternalName": "MitPlan",
-    "AssemblyVersion": "1.2.0.16",
+    "AssemblyVersion": "1.2.0.17",
     "Description": "Displays editable job/role-specific mitigation reminders using default plans based on PF, Ikuya, and NAUR mitigation strategies where available.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -48,10 +48,10 @@
     "IsTestingExclusive": false,
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Shinoyami/DalamudPlugins",
-    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.16/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.16/latest.zip",
-    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.16/latest.zip",
-    "TestingAssemblyVersion": "1.2.0.16",
-    "Changelog": "Corrects the first UWU P4 Tank Purge mitigation reminders to occur at the actual Tank Purge timing while preserving the Ultima Tank LB timing."
+    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.17/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.17/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.17/latest.zip",
+    "TestingAssemblyVersion": "1.2.0.17",
+    "Changelog": "Adds the FFXIV Limit Break icon to LB3 and Limit Break reminders, changes the default early warning to 8 seconds, and keeps alerts visible for 4 seconds after their timing."
   }
 ]
