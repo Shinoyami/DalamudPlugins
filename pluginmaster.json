@@ -3,7 +3,7 @@
     "Author": "Shinoyami",
     "Name": "Auto Raise Accept",
     "InternalName": "AutoRaiseAccept",
-    "AssemblyVersion": "1.0.0.1",
+    "AssemblyVersion": "1.0.0.2",
     "Description": "Automatically clicks Accept on FFXIV's incoming Raise dialog. Detection uses the game's active resurrection agent and does not depend on the raising player's name.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -23,11 +23,11 @@
     "IsTestingExclusive": false,
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Shinoyami/DalamudPlugins",
-    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/AutoRaiseAccept-v1.0.0.1/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/AutoRaiseAccept-v1.0.0.1/latest.zip",
-    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/AutoRaiseAccept-v1.0.0.1/latest.zip",
-    "TestingAssemblyVersion": "1.0.0.1",
-    "Changelog": "Fix the packaged manifest so Dalamud can validate and install the plugin."
+    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/AutoRaiseAccept-v1.0.0.2/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/AutoRaiseAccept-v1.0.0.2/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/AutoRaiseAccept-v1.0.0.2/latest.zip",
+    "TestingAssemblyVersion": "1.0.0.2",
+    "Changelog": "Accepts player Raises immediately while delaying return to the duty starting point until two minutes after death."
   },
   {
     "Author": "Shinoyami",

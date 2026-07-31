@@ -11,21 +11,26 @@ namespace AutoRaiseAccept;
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     private const string Command = "/ara";
+    private static readonly TimeSpan ReturnToStartDelay = TimeSpan.FromMinutes(2);
 
     private readonly IDalamudPluginInterface pluginInterface;
     private readonly IFramework framework;
+    private readonly IObjectTable objectTable;
     private readonly IGameGui gameGui;
     private readonly ICommandManager commandManager;
     private readonly IChatGui chatGui;
     private readonly IPluginLog log;
     private readonly Configuration configuration;
 
-    private DateTime? raiseDetectedAt;
-    private bool handledCurrentRaise;
+    private DateTime? deadDetectedAt;
+    private DateTime? playerRaiseDetectedAt;
+    private RevivePromptKind currentPromptKind;
+    private bool handledCurrentPrompt;
 
     public Plugin(
         IDalamudPluginInterface pluginInterface,
         IFramework framework,
+        IObjectTable objectTable,
         IGameGui gameGui,
         ICommandManager commandManager,
         IChatGui chatGui,
@@ -33,6 +38,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
     {
         this.pluginInterface = pluginInterface;
         this.framework = framework;
+        this.objectTable = objectTable;
         this.gameGui = gameGui;
         this.commandManager = commandManager;
         this.chatGui = chatGui;
@@ -73,7 +79,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         if (parts[0].Equals("off", StringComparison.OrdinalIgnoreCase))
         {
             configuration.Enabled = false;
-            ResetRaiseState();
+            ResetDeathState();
             Save();
             chatGui.Print("[Auto Raise Accept] Disabled.");
             return;
@@ -94,7 +100,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
     private void PrintStatus()
     {
         var state = configuration.Enabled ? "enabled" : "disabled";
-        chatGui.Print($"[Auto Raise Accept] {state}; delay {configuration.DelayMilliseconds} ms.");
+        chatGui.Print($"[Auto Raise Accept] {state}; player Raise delay {configuration.DelayMilliseconds} ms; return delay 2 minutes.");
     }
 
     private void Save() => pluginInterface.SavePluginConfig(configuration);
@@ -106,23 +112,23 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         try
         {
-            var reviveAgent = AgentRevive.Instance();
-            var raiseIsActive = reviveAgent != null &&
-                                reviveAgent->Revive != null &&
-                                reviveAgent->IsAddonShown();
-
-            if (!raiseIsActive)
+            if (objectTable.LocalPlayer is not { IsDead: true })
             {
-                ResetRaiseState();
+                ResetDeathState();
                 return;
             }
 
-            if (handledCurrentRaise)
-                return;
+            deadDetectedAt ??= DateTime.UtcNow;
+            var reviveAgent = AgentRevive.Instance();
+            var revivePromptIsActive = reviveAgent != null &&
+                                      reviveAgent->Revive != null &&
+                                      reviveAgent->IsAddonShown();
 
-            raiseDetectedAt ??= DateTime.UtcNow;
-            if ((DateTime.UtcNow - raiseDetectedAt.Value).TotalMilliseconds < configuration.DelayMilliseconds)
+            if (!revivePromptIsActive)
+            {
+                ResetPromptState();
                 return;
+            }
 
             var addonAddress = gameGui.GetAddonByName("SelectYesno");
             if (addonAddress == nint.Zero)
@@ -132,19 +138,47 @@ public sealed unsafe class Plugin : IDalamudPlugin
             if (!addon->AtkUnitBase.IsVisible)
                 return;
 
+            // AgentRevive is used by both player Raises and the duty return prompt.
+            // A non-zero resurrecting player ID identifies a Raise without depending on the caster's name.
+            var promptKind = reviveAgent->ResurrectingPlayerId != 0
+                ? RevivePromptKind.PlayerRaise
+                : RevivePromptKind.ReturnToStart;
+            if (promptKind != currentPromptKind)
+            {
+                currentPromptKind = promptKind;
+                handledCurrentPrompt = false;
+                playerRaiseDetectedAt = promptKind == RevivePromptKind.PlayerRaise ? DateTime.UtcNow : null;
+            }
+
+            if (handledCurrentPrompt)
+                return;
+
+            if (promptKind == RevivePromptKind.PlayerRaise)
+            {
+                playerRaiseDetectedAt ??= DateTime.UtcNow;
+                if ((DateTime.UtcNow - playerRaiseDetectedAt.Value).TotalMilliseconds < configuration.DelayMilliseconds)
+                    return;
+            }
+            else if (DateTime.UtcNow - deadDetectedAt.Value < ReturnToStartDelay)
+            {
+                return;
+            }
+
             var acceptButton = addon->YesButton;
             if (acceptButton == null || !acceptButton->IsEnabled ||
                 !acceptButton->AtkComponentBase.OwnerNode->AtkResNode.IsVisible())
                 return;
 
             ClickButton(acceptButton, &addon->AtkUnitBase);
-            handledCurrentRaise = true;
-            log.Information("Accepted incoming Raise using the dialog's first (Accept) button.");
+            handledCurrentPrompt = true;
+            log.Information(promptKind == RevivePromptKind.PlayerRaise
+                ? "Accepted incoming player Raise."
+                : "Accepted return to the starting point after two minutes without a player Raise.");
         }
         catch (Exception ex)
         {
-            log.Error(ex, "Failed to accept incoming Raise.");
-            handledCurrentRaise = true;
+            log.Error(ex, "Failed to handle revive prompt.");
+            handledCurrentPrompt = true;
         }
     }
 
@@ -159,9 +193,23 @@ public sealed unsafe class Plugin : IDalamudPlugin
         addon->ReceiveEvent(clickEvent->State.EventType, (int)clickEvent->Param, clickEvent);
     }
 
-    private void ResetRaiseState()
+    private void ResetPromptState()
     {
-        raiseDetectedAt = null;
-        handledCurrentRaise = false;
+        playerRaiseDetectedAt = null;
+        currentPromptKind = RevivePromptKind.None;
+        handledCurrentPrompt = false;
+    }
+
+    private void ResetDeathState()
+    {
+        deadDetectedAt = null;
+        ResetPromptState();
+    }
+
+    private enum RevivePromptKind
+    {
+        None,
+        PlayerRaise,
+        ReturnToStart,
     }
 }
