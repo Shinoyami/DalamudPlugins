@@ -1,0 +1,9 @@
+{
+  "Author": "Shinoyami",
+  "Name": "MitPlan",
+  "Punchline": "Google Sheets mitigation timelines in-game.",
+  "Description": "Reads phase tabs from a public Google Sheet and displays job/role-specific mitigation reminders on an encounter timer.",
+  "InternalName": "MitPlan",
+  "ApplicableVersion": "any",
+  "Tags": ["combat", "mitigation", "timeline", "utility"]
+}

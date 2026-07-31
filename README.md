@@ -22,6 +22,12 @@ depend on the raising player's name.
 
 Commands: `/ara`, `/ara on`, `/ara off`, and `/ara delay <milliseconds>`.
 
+### MitPlan
+
+Reads P1-P5 mitigation timelines from a public Google Sheet, filters assignments
+by selected job and party slot, and displays advance warnings on an encounter
+timer. Use `/mitplan` to configure it.
+
 ## Disclaimer
 
 Dalamud plugins are third-party tools. Use them at your own risk.
