@@ -59,13 +59,13 @@ public sealed class Plugin : IDalamudPlugin
     private string editorStatus = string.Empty;
     private readonly HashSet<(nint Address, uint ActionId)> activeCasts = [];
     private readonly HashSet<string> firedSyncTriggers = [];
+    private readonly HashSet<string> syncedPhaseAnchors = [];
     private readonly Dictionary<string, DateTime> lastTriggerTimes = [];
     private readonly HashSet<(nint Address, uint StatusId)> activeStatuses = [];
     private readonly HashSet<uint> seenActorDataIds = [];
     private readonly Dictionary<uint, DateTime> missingActorSince = [];
     private readonly HashSet<string> firedStateTransitions = [];
     private readonly HashSet<string> playedAudioAlerts = [];
-    private PendingTimelineSync? pendingTimelineSync;
     private string currentPhase = string.Empty;
     private string lastSyncStatus = string.Empty;
 
@@ -159,12 +159,12 @@ public sealed class Plugin : IDalamudPlugin
             CheckTimelineSyncTriggers();
             CheckResolvedAbilities();
             CheckStatusTriggers();
-            ApplyPendingTimelineSync();
         }
         else
         {
             activeCasts.Clear();
             firedSyncTriggers.Clear();
+            syncedPhaseAnchors.Clear();
             lastTriggerTimes.Clear();
             activeStatuses.Clear();
             actionEffectWatcher.Clear();
@@ -172,7 +172,6 @@ public sealed class Plugin : IDalamudPlugin
             seenActorDataIds.Clear();
             missingActorSince.Clear();
             firedStateTransitions.Clear();
-            pendingTimelineSync = null;
             playedAudioAlerts.Clear();
         }
         wasInCombat = inCombat;
@@ -230,11 +229,9 @@ public sealed class Plugin : IDalamudPlugin
             };
             if (!matched)
                 continue;
-            pendingTimelineSync = null;
-            StartTimer(transition.TimelineSeconds);
             currentPhase = transition.ResultPhase;
             firedStateTransitions.Add(key);
-            lastSyncStatus = $"Phase changed to {transition.ResultPhase}: {transition.Name}.";
+            lastSyncStatus = $"Detected {transition.ResultPhase}; waiting for its first phase anchor.";
         }
     }
 
@@ -299,48 +296,24 @@ public sealed class Plugin : IDalamudPlugin
         foreach (var trigger in SelectedFight.SyncTriggers.Where(item => item.EventType == eventType && item.EventId == eventId))
         {
             var key = $"{eventType}:{eventId:X}:{trigger.RequiredPhase}:{trigger.ResultPhase}:{trigger.TimelineSeconds}";
-            if (!string.IsNullOrEmpty(trigger.RequiredPhase) && currentPhase != trigger.RequiredPhase)
+            var anchorPhase = string.IsNullOrEmpty(trigger.ResultPhase)
+                ? $"timeline:{trigger.TimelineSeconds}"
+                : trigger.ResultPhase;
+            if (!string.IsNullOrEmpty(trigger.RequiredPhase) &&
+                currentPhase != trigger.RequiredPhase && currentPhase != trigger.ResultPhase)
                 continue;
-            if (firedSyncTriggers.Contains(key))
+            if (firedSyncTriggers.Contains(key) || syncedPhaseAnchors.Contains(anchorPhase))
                 continue;
             if (trigger.SuppressSeconds > 0 && lastTriggerTimes.TryGetValue(key, out var last) &&
                 DateTime.UtcNow - last < TimeSpan.FromSeconds(trigger.SuppressSeconds))
                 continue;
 
             firedSyncTriggers.Add(key);
+            syncedPhaseAnchors.Add(anchorPhase);
             var observedAt = DateTime.UtcNow;
             lastTriggerTimes[key] = observedAt;
-            if (!string.IsNullOrEmpty(trigger.ResultPhase))
-                currentPhase = trigger.ResultPhase;
-
-            var alertStartsAt = Math.Max(0, trigger.TimelineSeconds - configuration.LeadSeconds);
-            var alertEndsAt = trigger.TimelineSeconds + configuration.KeepSeconds;
-            if (pullStartedAt is not null && ElapsedSeconds <= alertEndsAt)
-            {
-                // If the anchor clock fell behind, show the current reminder now instead of waiting
-                // until after the observed mechanic. The full correction is applied once its alert ends.
-                if (ElapsedSeconds < alertStartsAt)
-                    StartTimer(alertStartsAt);
-                if (!string.IsNullOrEmpty(trigger.ResultPhase))
-                    currentPhase = trigger.ResultPhase;
-                pendingTimelineSync = new PendingTimelineSync(
-                    trigger.TimelineSeconds, observedAt, trigger.ResultPhase, trigger.Name, eventType, eventId);
-                lastSyncStatus = $"Sync queued after the active alert: {trigger.Name}.";
-            }
-            else
-                ApplyTimelineSync(trigger.TimelineSeconds, observedAt, trigger.ResultPhase, trigger.Name, eventType, eventId);
+            ApplyTimelineSync(trigger.TimelineSeconds, observedAt, trigger.ResultPhase, trigger.Name, eventType, eventId);
         }
-    }
-
-    private void ApplyPendingTimelineSync()
-    {
-        if (pendingTimelineSync is not { } pending ||
-            ElapsedSeconds < pending.TimelineSeconds + configuration.KeepSeconds)
-            return;
-
-        pendingTimelineSync = null;
-        ApplyTimelineSync(pending.TimelineSeconds, pending.ObservedAt, pending.ResultPhase,
-            pending.Name, pending.EventType, pending.EventId);
     }
 
     private void ApplyTimelineSync(int timelineSeconds, DateTime observedAt, string resultPhase,
@@ -473,6 +446,7 @@ public sealed class Plugin : IDalamudPlugin
                     pullStartedAt = null;
                     activeCasts.Clear();
                     firedSyncTriggers.Clear();
+                    syncedPhaseAnchors.Clear();
                     lastTriggerTimes.Clear();
                     activeStatuses.Clear();
                     actionEffectWatcher.Clear();
@@ -1353,14 +1327,6 @@ public sealed class Plugin : IDalamudPlugin
         if (role.Contains("D4")) return "D4";
         return role;
     }
-
-    private sealed record PendingTimelineSync(
-        int TimelineSeconds,
-        DateTime ObservedAt,
-        string ResultPhase,
-        string Name,
-        TimelineSyncEventType EventType,
-        uint EventId);
 
     private static string FormatTime(int totalSeconds) => $"{totalSeconds / 60}:{totalSeconds % 60:00}";
     private static string SingleLine(string text) => text.Replace("\r", string.Empty).Replace("\n", " → ");
