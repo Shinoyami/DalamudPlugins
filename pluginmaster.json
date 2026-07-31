@@ -33,7 +33,7 @@
     "Author": "Shinoyami",
     "Name": "MitPlan",
     "InternalName": "MitPlan",
-    "AssemblyVersion": "1.1.0.0",
+    "AssemblyVersion": "1.1.1.0",
     "Description": "Displays editable job/role-specific mitigation reminders using default plans based on Ikuya's mitigation sheets where available.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -48,10 +48,10 @@
     "IsTestingExclusive": false,
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Shinoyami/DalamudPlugins",
-    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.1.0.0/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.1.0.0/latest.zip",
-    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.1.0.0/latest.zip",
-    "TestingAssemblyVersion": "1.1.0.0",
-    "Changelog": "Adds editable built-in Ikuya mitigation presets, job/role filtering, compact skill alerts, and automatic phase synchronization for supported Savage and Ultimate fights."
+    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.1.1.0/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.1.1.0/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.1.1.0/latest.zip",
+    "TestingAssemblyVersion": "1.1.1.0",
+    "Changelog": "Filters the timeline by selected role and healer job, resolves generic Party Mit instructions to the selected job's current action, and uses current high-resolution PvE action icons."
   }
 ]

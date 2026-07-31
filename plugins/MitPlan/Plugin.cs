@@ -506,7 +506,7 @@ public sealed class Plugin : IDalamudPlugin
             ImGui.TableSetupColumn("Delete", ImGuiTableColumnFlags.WidthFixed, 58);
             ImGui.TableHeadersRow();
 
-            var orderedItems = fight.Timeline.OrderBy(entry => entry.TimeSeconds).ToList();
+            var orderedItems = ApplicableTimeline().ToList();
             var phases = fight.Phases.OrderBy(phase => phase.StartSeconds).ToList();
             var nextPhase = 0;
             foreach (var item in orderedItems)
@@ -520,7 +520,7 @@ public sealed class Plugin : IDalamudPlugin
                 ImGui.TableNextColumn(); ImGui.Text(item.TimeSeconds < 0 ? "Untimed" : FormatTime(item.TimeSeconds));
                 ImGui.TableNextColumn(); ImGui.Text(item.TargetJob == "Any Job" ? "Any" : item.TargetJob);
                 ImGui.TableNextColumn(); ImGui.Text(item.TargetRole == "Any Role" ? "Any" : ShortRole(item.TargetRole));
-                ImGui.TableNextColumn(); ImGui.TextWrapped(item.Skill);
+                ImGui.TableNextColumn(); ImGui.TextWrapped(ResolveInstruction(item.Skill));
                 ImGui.TableNextColumn(); ImGui.TextWrapped(item.Note);
                 ImGui.TableNextColumn();
                 if (ImGui.SmallButton($"Edit##{item.Id}"))
@@ -655,25 +655,11 @@ public sealed class Plugin : IDalamudPlugin
         if (ImGui.Begin("MitPlan##Overlay", ref overlayOpen,
                 ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoTitleBar))
         {
-            foreach (var item in active)
-            foreach (var skill in SplitSkills(item.Skill))
+            foreach (var skill in active
+                         .SelectMany(item => SplitSkills(item.Skill))
+                         .Select(ResolveSkillName)
+                         .Distinct(StringComparer.OrdinalIgnoreCase))
                 DrawSkillAlert(skill);
-            /* old detailed overlay
-                foreach (var item in active)
-                {
-                    var delta = item.TimeSeconds - elapsed;
-                    var color = delta <= 0 ? new Vector4(1f, 0.25f, 0.2f, 1f) : new Vector4(1f, 0.85f, 0.15f, 1f);
-                    ImGui.TextColored(color, $"{(delta >= 0 ? $"IN {delta}s" : "NOW")} — {item.Skill}");
-                    if (!string.IsNullOrWhiteSpace(item.Note))
-                        ImGui.TextWrapped($"{FormatTime(item.TimeSeconds)}  {item.Note}");
-                }
-            }
-            if (next is not null)
-            {
-                ImGui.Separator();
-                ImGui.TextDisabled($"Next: {FormatTime(next.TimeSeconds)} — {SingleLine(next.Skill)}");
-            }
-            */
         }
         ImGui.End();
 
@@ -696,7 +682,7 @@ public sealed class Plugin : IDalamudPlugin
         }
         if (showIcon && TryFindActionIcon(skill, out var iconId))
         {
-            var texture = textureProvider.GetFromGameIcon(new GameIconLookup(iconId)).GetWrapOrEmpty();
+            var texture = textureProvider.GetFromGameIcon(new GameIconLookup(iconId, false, true, null)).GetWrapOrEmpty();
             ImGui.Image(texture.Handle, new Vector2(36, 36));
         }
         else if (showIcon && !showName)
@@ -706,20 +692,14 @@ public sealed class Plugin : IDalamudPlugin
     private bool TryFindActionIcon(string skill, out uint iconId)
     {
         var lookup = skill.Trim();
-        if (lookup.Contains("Party Mit", StringComparison.OrdinalIgnoreCase))
-            lookup = configuration.SelectedJob switch
-            {
-                "WAR" => "Shake It Off", "PLD" => "Divine Veil", "DRK" => "Dark Missionary",
-                "GNB" => "Heart of Light", "BRD" => "Troubadour", "MCH" => "Tactician",
-                "DNC" => "Shield Samba", _ => lookup,
-            };
         if (lookup.Equals("Spreadlo", StringComparison.OrdinalIgnoreCase))
             lookup = "Adloquium";
         var actions = dataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>();
-        var action = actions.FirstOrDefault(row => row.Name.ToString().Equals(lookup, StringComparison.OrdinalIgnoreCase));
+        var action = actions.FirstOrDefault(row => row.IsPlayerAction && !row.IsPvP &&
+            row.Name.ToString().Equals(lookup, StringComparison.OrdinalIgnoreCase));
         if (action.Icon == 0)
             action = actions
-                .Where(row => row.Icon != 0 && row.Name.ToString().Length >= 4 &&
+                .Where(row => row.Icon != 0 && row.IsPlayerAction && !row.IsPvP && row.Name.ToString().Length >= 4 &&
                               lookup.Contains(row.Name.ToString(), StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(row => row.Name.ToString().Length)
                 .FirstOrDefault();
@@ -730,6 +710,37 @@ public sealed class Plugin : IDalamudPlugin
     private static IEnumerable<string> SplitSkills(string value) => value
         .Replace("â†’", "+").Replace("→", "+")
         .Split('+', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+    private string ResolveSkillName(string instruction)
+    {
+        var cleaned = instruction.Trim().TrimStart('→').Trim();
+        if (!cleaned.Contains("Party Mit", StringComparison.OrdinalIgnoreCase))
+            return cleaned;
+
+        return configuration.SelectedJob switch
+        {
+            "WAR" => "Shake It Off",
+            "PLD" => "Divine Veil",
+            "DRK" => "Dark Missionary",
+            "GNB" => "Heart of Light",
+            "BRD" => "Troubadour",
+            "MCH" => "Tactician",
+            "DNC" => "Shield Samba",
+            "WHM" => "Temperance",
+            "AST" => "Sun Sign",
+            "SCH" => "Expedient",
+            "SGE" => "Kerachole",
+            "RDM" => "Magick Barrier",
+            "BLM" or "SMN" or "PCT" => "Addle",
+            "DRG" or "MNK" or "NIN" or "RPR" or "SAM" or "VPR" => "Feint",
+            _ => "Party Mit",
+        };
+    }
+
+    private string ResolveInstruction(string instruction) => string.Join(" + ",
+        SplitSkills(instruction)
+            .Select(ResolveSkillName)
+            .Distinct(StringComparer.OrdinalIgnoreCase));
 
     private IEnumerable<TimelineItem> ApplicableTimeline() =>
         SelectedFight.Timeline
