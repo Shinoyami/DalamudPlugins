@@ -1,7 +1,5 @@
 # Shinoyami's Dalamud Plugins
 
-A personal Dalamud plugin repository containing plugins developed with Codex.
-
 ## Installation
 
 1. Open Dalamud Settings with `/xlsettings`.
