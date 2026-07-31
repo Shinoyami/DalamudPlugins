@@ -6,7 +6,7 @@ namespace MitPlan;
 
 public sealed class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; } = 8;
+    public int Version { get; set; } = 9;
     public string SelectedFightId { get; set; } = "dmu";
     public List<FightPlan> Fights { get; set; } = [FightPlan.CreateDefault()];
     public string SelectedJob { get; set; } = "WAR";
@@ -14,6 +14,7 @@ public sealed class Configuration : IPluginConfiguration
     public bool AutoStartWithCombat { get; set; } = true;
     public bool ShowOverlay { get; set; } = true;
     public float OverlayOpacity { get; set; } = 1f;
+    public float OverlayBackgroundOpacity { get; set; } = 1f;
     public float[] OverlayTextColor { get; set; } = [1f, 1f, 1f, 1f];
     public bool GlowText { get; set; }
     public float[] OverlayGlowColor { get; set; } = [1f, 0.72f, 0.08f, 1f];
@@ -38,6 +39,9 @@ public sealed class Configuration : IPluginConfiguration
                 item.TargetRole = RenameHealerRole(item.TargetRole);
         }
         OverlayOpacity = Math.Clamp(OverlayOpacity, 0.1f, 1f);
+        if (Version < 9)
+            OverlayBackgroundOpacity = OverlayOpacity;
+        OverlayBackgroundOpacity = Math.Clamp(OverlayBackgroundOpacity, 0f, 1f);
         if (OverlayTextColor is not { Length: 4 })
             OverlayTextColor = [1f, 1f, 1f, 1f];
         if (OverlayGlowColor is not { Length: 4 })
@@ -47,7 +51,7 @@ public sealed class Configuration : IPluginConfiguration
             OverlayTextColor[index] = Math.Clamp(OverlayTextColor[index], 0f, 1f);
             OverlayGlowColor[index] = Math.Clamp(OverlayGlowColor[index], 0f, 1f);
         }
-        Version = 8;
+        Version = 9;
     }
 
     private static string RenameHealerRole(string role) => role switch

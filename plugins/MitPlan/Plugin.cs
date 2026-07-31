@@ -640,9 +640,16 @@ public sealed class Plugin : IDalamudPlugin
         }
         var opacityPercent = (int)MathF.Round(configuration.OverlayOpacity * 100f);
         ImGui.SetNextItemWidth(180);
-        if (ImGui.SliderInt("Overlay opacity", ref opacityPercent, 10, 100, "%d%%"))
+        if (ImGui.SliderInt("Text / icon opacity", ref opacityPercent, 10, 100, "%d%%"))
         {
             configuration.OverlayOpacity = opacityPercent / 100f;
+            Save();
+        }
+        var backgroundOpacityPercent = (int)MathF.Round(configuration.OverlayBackgroundOpacity * 100f);
+        ImGui.SetNextItemWidth(180);
+        if (ImGui.SliderInt("Black background opacity", ref backgroundOpacityPercent, 0, 100, "%d%%"))
+        {
+            configuration.OverlayBackgroundOpacity = backgroundOpacityPercent / 100f;
             Save();
         }
         var textColor = ColorFromConfig(configuration.OverlayTextColor);
@@ -727,19 +734,20 @@ public sealed class Plugin : IDalamudPlugin
         if (active.Count == 0)
             return;
 
-        ImGui.PushStyleVar(ImGuiStyleVar.Alpha, configuration.OverlayOpacity);
         ImGui.SetNextWindowSize(new Vector2(260, 0), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowBgAlpha(configuration.OverlayBackgroundOpacity);
         var overlayOpen = true;
         if (ImGui.Begin("MitPlan##Overlay", ref overlayOpen,
-                ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoTitleBar))
+                 ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoTitleBar))
         {
+            ImGui.PushStyleVar(ImGuiStyleVar.Alpha, configuration.OverlayOpacity);
             foreach (var skill in active
                          .SelectMany(item => ResolveSkills(item.Skill))
                          .Distinct(StringComparer.OrdinalIgnoreCase))
                 DrawSkillAlert(skill);
+            ImGui.PopStyleVar();
         }
         ImGui.End();
-        ImGui.PopStyleVar();
 
         if (!overlayOpen)
         {
