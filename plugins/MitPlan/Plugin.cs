@@ -845,18 +845,27 @@ public sealed class Plugin : IDalamudPlugin
     private bool TryFindActionIcon(string skill, out uint iconId)
     {
         var lookup = skill.Trim();
+        if (lookup.EndsWith(" (Buddy)", StringComparison.OrdinalIgnoreCase))
+            lookup = lookup[..^8].TrimEnd();
         if (lookup.Equals("Spreadlo", StringComparison.OrdinalIgnoreCase))
             lookup = "Adloquium";
         var actions = dataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>();
-        var action = actions.FirstOrDefault(row => row.IsPlayerAction && !row.IsPvP &&
-            row.Name.ToString().Equals(lookup, StringComparison.OrdinalIgnoreCase));
-        if (action.Icon == 0)
-            action = actions
+        var exact = actions
+            .Where(row => row.IsPlayerAction && !row.IsPvP &&
+                          row.Name.ToString().Equals(lookup, StringComparison.OrdinalIgnoreCase))
+            .Select(row => new { row.Icon })
+            .FirstOrDefault();
+        iconId = exact?.Icon ?? 0;
+        if (iconId == 0)
+        {
+            var fallback = actions
                 .Where(row => row.Icon != 0 && row.IsPlayerAction && !row.IsPvP && row.Name.ToString().Length >= 4 &&
                               lookup.Contains(row.Name.ToString(), StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(row => row.Name.ToString().Length)
+                .Select(row => new { row.Icon, Name = row.Name.ToString() })
+                .OrderByDescending(row => row.Name.Length)
                 .FirstOrDefault();
-        iconId = action.Icon;
+            iconId = fallback?.Icon ?? 0;
+        }
         return iconId != 0;
     }
 
