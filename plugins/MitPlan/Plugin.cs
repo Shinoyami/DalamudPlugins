@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.Command;
@@ -11,6 +12,7 @@ using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Interface.Textures;
 using Dalamud.Plugin;
+using Dalamud.Plugin.Ipc;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 
@@ -43,6 +45,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IDataManager dataManager;
     private readonly ITextureProvider textureProvider;
     private readonly ActionEffectWatcher actionEffectWatcher;
+    private readonly ICallGateProvider<string, bool> importFightProvider;
     private Configuration configuration;
 
     private DateTime? pullStartedAt;
@@ -61,6 +64,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly HashSet<string> firedSyncTriggers = [];
     private readonly HashSet<string> syncedPhaseAnchors = [];
     private readonly Dictionary<string, DateTime> lastTriggerTimes = [];
+    private readonly Dictionary<string, int> observedSyncOccurrences = [];
     private readonly HashSet<(nint Address, uint StatusId)> activeStatuses = [];
     private readonly HashSet<uint> seenActorDataIds = [];
     private readonly Dictionary<uint, DateTime> missingActorSince = [];
@@ -92,6 +96,9 @@ public sealed class Plugin : IDalamudPlugin
         configuration.Migrate();
         Save();
 
+        importFightProvider = pluginInterface.GetIpcProvider<string, bool>("MitPlan.ImportFightJson");
+        importFightProvider.RegisterFunc(ImportFightJson);
+
         commandManager.AddHandler(Command, new CommandInfo(OnCommand)
         {
             HelpMessage = "Open MitPlan. Arguments: start, stop, reset."
@@ -109,10 +116,45 @@ public sealed class Plugin : IDalamudPlugin
         pluginInterface.UiBuilder.OpenConfigUi -= OpenConfig;
         pluginInterface.UiBuilder.OpenMainUi -= OpenConfig;
         commandManager.RemoveHandler(Command);
+        importFightProvider.UnregisterFunc();
         actionEffectWatcher.Dispose();
     }
 
     private void OpenConfig() => mainWindowOpen = true;
+
+    private bool ImportFightJson(string json)
+    {
+        try
+        {
+            var imported = JsonSerializer.Deserialize<FightPlan>(json);
+            if (imported is null || string.IsNullOrWhiteSpace(imported.Id) || string.IsNullOrWhiteSpace(imported.Name))
+                return false;
+            imported.IsBuiltIn = false;
+            imported.PresetRevision = 0;
+            imported.Phases ??= [];
+            imported.SyncTriggers ??= [];
+            imported.StateTransitions ??= [];
+            imported.Timeline ??= [];
+            if (imported.Phases.Count == 0)
+                imported.Phases.Add(new FightPhase { Name = "P1", Key = "P1", StartSeconds = 0 });
+            var existing = configuration.Fights.FirstOrDefault(fight => fight.Id == imported.Id && !fight.IsBuiltIn);
+            if (existing is not null)
+                configuration.Fights.Remove(existing);
+            else if (configuration.Fights.Any(fight => fight.Id == imported.Id))
+                imported.Id = $"{imported.Id}-{Guid.NewGuid():N}";
+            configuration.Fights.Add(imported);
+            configuration.SelectedFightId = imported.Id;
+            pullStartedAt = null;
+            currentPhase = string.Empty;
+            Save();
+            mainWindowOpen = true;
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
 
     private FightPlan SelectedFight
     {
@@ -168,6 +210,7 @@ public sealed class Plugin : IDalamudPlugin
             firedSyncTriggers.Clear();
             syncedPhaseAnchors.Clear();
             lastTriggerTimes.Clear();
+            observedSyncOccurrences.Clear();
             activeStatuses.Clear();
             actionEffectWatcher.Clear();
             currentPhase = string.Empty;
@@ -297,7 +340,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         foreach (var trigger in SelectedFight.SyncTriggers.Where(item => item.EventType == eventType && item.EventId == eventId))
         {
-            var key = $"{eventType}:{eventId:X}:{trigger.RequiredPhase}:{trigger.ResultPhase}:{trigger.TimelineSeconds}";
+            var key = $"{eventType}:{eventId:X}:{trigger.RequiredPhase}:{trigger.ResultPhase}:{trigger.TimelineSeconds}:{Math.Max(1, trigger.Occurrence)}";
             var anchorPhase = string.IsNullOrEmpty(trigger.ResultPhase)
                 ? $"timeline:{trigger.TimelineSeconds}"
                 : trigger.ResultPhase;
@@ -305,6 +348,10 @@ public sealed class Plugin : IDalamudPlugin
                 currentPhase != trigger.RequiredPhase && currentPhase != trigger.ResultPhase)
                 continue;
             if (firedSyncTriggers.Contains(key) || syncedPhaseAnchors.Contains(anchorPhase))
+                continue;
+            var observedOccurrence = observedSyncOccurrences.GetValueOrDefault(key) + 1;
+            observedSyncOccurrences[key] = observedOccurrence;
+            if (observedOccurrence < Math.Max(1, trigger.Occurrence))
                 continue;
             if (trigger.SuppressSeconds > 0 && lastTriggerTimes.TryGetValue(key, out var last) &&
                 DateTime.UtcNow - last < TimeSpan.FromSeconds(trigger.SuppressSeconds))
@@ -450,6 +497,7 @@ public sealed class Plugin : IDalamudPlugin
                     firedSyncTriggers.Clear();
                     syncedPhaseAnchors.Clear();
                     lastTriggerTimes.Clear();
+                    observedSyncOccurrences.Clear();
                     activeStatuses.Clear();
                     actionEffectWatcher.Clear();
                     currentPhase = string.Empty;

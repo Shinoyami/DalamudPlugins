@@ -26,6 +26,12 @@ Displays editable fight timelines, filters assignments by selected job and party
 slot, and shows advance mitigation warnings. Default mitigation plans are based
 on PF / Ikuya / NAUR mitigation strategies where available. Use `/mitplan` to configure it.
 
+### MitPlan Recorder
+
+Records enemy casts and abilities into an editable encounter timeline, supports
+phase-specific cast anchors and CSV mitigation imports, and sends reviewed plans
+directly to MitPlan. Use `/mitrec` to open it.
+
 ## Disclaimer
 
 Dalamud plugins are third-party tools. Use them at your own risk.

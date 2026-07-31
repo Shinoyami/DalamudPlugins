@@ -146,6 +146,7 @@ public sealed class TimelineSyncTrigger
 {
     public TimelineSyncEventType EventType { get; set; } = TimelineSyncEventType.CastStart;
     public uint EventId { get; set; }
+    public int Occurrence { get; set; } = 1;
     public int TimelineSeconds { get; set; }
     public string Name { get; set; } = string.Empty;
     public string RequiredPhase { get; set; } = string.Empty;

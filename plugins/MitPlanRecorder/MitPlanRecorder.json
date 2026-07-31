@@ -1,0 +1,9 @@
+{
+  "Author": "Shinoyami",
+  "Name": "MitPlan Recorder",
+  "Punchline": "Record encounter timelines and attach mitigation plans from CSV files.",
+  "Description": "Records enemy casts and abilities during combat, proposes phase anchors, imports mitigation assignments from CSV, and sends reviewed plans to MitPlan.",
+  "InternalName": "MitPlanRecorder",
+  "ApplicableVersion": "any",
+  "Tags": ["combat", "mitigation", "timeline", "utility"]
+}
