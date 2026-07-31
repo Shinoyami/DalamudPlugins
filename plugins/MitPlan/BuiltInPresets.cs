@@ -1856,9 +1856,9 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 1094u,
             IsBuiltIn = true,
-            PresetRevision = 3,
+            PresetRevision = 4,
             SourceUrl = "https://docs.google.com/spreadsheets/d/10C3ytfH3irHqkb45rchIq5oqdAs-v_OKTj57M-Twi3k/edit?usp=sharing",
-            PresetStatus = "PF / Ikuya / NAUR mitigation assignments with full/phase timing.",
+            PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-style one-shot phase anchoring.",
             Phases =
             [
                 new FightPhase { Name = "P1 Kefka", Key = "P1 Kefka", StartSeconds = 0 },
@@ -1869,19 +1869,12 @@ internal static class BuiltInPresets
             ],
             SyncTriggers =
             [
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 47764u, TimelineSeconds = 38, Name = "P1 Mystery Magic", RequiredPhase = "", ResultPhase = "P1 Kefka", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49740u, TimelineSeconds = 221, Name = "P2 Ultimate Embrace", RequiredPhase = "P1 Kefka", ResultPhase = "P2 Forsaken Kefka", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 47858u, TimelineSeconds = 450, Name = "P3 Bowels of Agony", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49884u, TimelineSeconds = 763, Name = "P4 Grand Cross", RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "P4 Kefka Says", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 50167u, TimelineSeconds = 382, Name = "P3 Aero III Assault", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49884u, TimelineSeconds = 763, Name = "P4 Kefka Says", RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "P4 Kefka Says", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 47936u, TimelineSeconds = 907, Name = "P5 Ultima Repeater", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0 },
             ],
-            StateTransitions =
-            [
-                new ActorStateTransition { RequiredPhase = "P1 Kefka", ResultPhase = "P2 Forsaken Kefka", TimelineSeconds = 197, Condition = ActorStateCondition.Untargetable, ActorDataIds = [19504u], Name = "P1 Kefka becomes untargetable" },
-                new ActorStateTransition { RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", TimelineSeconds = 382, Condition = ActorStateCondition.UntargetableBelowFullHp, ActorDataIds = [19506u], Name = "P2 Kefka becomes untargetable after the HP check" },
-                new ActorStateTransition { RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "P4 Kefka Says", TimelineSeconds = 734, Condition = ActorStateCondition.AllDeadOrDestroyed, ActorDataIds = [19508u, 19509u], Name = "Chaos and Exdeath are defeated" },
-                new ActorStateTransition { RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", TimelineSeconds = 862, Condition = ActorStateCondition.DeadOrDestroyed, ActorDataIds = [18475u], Name = "P4 Kefka is defeated" },
-            ],
+            StateTransitions = [],
             Timeline =
             [
                 Item(38, "Party Mit", "P1 | Kefka: Mystery Magic", "Any Job", "MT"),

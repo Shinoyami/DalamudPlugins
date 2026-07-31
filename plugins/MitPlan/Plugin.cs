@@ -149,6 +149,8 @@ public sealed class Plugin : IDalamudPlugin
         if (configuration.AutoStartWithCombat && inCombat && !wasInCombat)
         {
             StartTimer(0);
+            if (!string.IsNullOrEmpty(currentPhase))
+                syncedPhaseAnchors.Add(currentPhase);
             lastSyncStatus = "Encounter clock synced to combat start.";
         }
         else if (configuration.AutoStartWithCombat && !inCombat && wasInCombat)
@@ -757,6 +759,14 @@ public sealed class Plugin : IDalamudPlugin
             configuration.KeepSeconds = Math.Clamp(keep, 0, 60);
             Save();
         }
+        var enablePersonalTankMitAlerts = configuration.EnablePersonalTankMitAlerts;
+        if (ImGui.Checkbox("Personal Tank Mits", ref enablePersonalTankMitAlerts))
+        {
+            configuration.EnablePersonalTankMitAlerts = enablePersonalTankMitAlerts;
+            Save();
+        }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Show personal mitigation callouts while playing a tank. The personal-mit timeline remains visible when disabled.");
         var enableAudioAlert = configuration.EnableAudioAlert;
         if (ImGui.Checkbox("Enable audio alert", ref enableAudioAlert))
         {
@@ -834,7 +844,8 @@ public sealed class Plugin : IDalamudPlugin
     private void DrawOverlay()
     {
         var elapsed = ElapsedSeconds;
-        var active = ApplicableTimeline()
+        var active = ApplicableTimeline(activePhaseOnly: true)
+            .Where(item => configuration.EnablePersonalTankMitAlerts || !IsTankPersonalMit(item))
             .Where(item => item.TimeSeconds - elapsed <= configuration.LeadSeconds &&
                            item.TimeSeconds - elapsed >= -configuration.KeepSeconds)
             .Take(5)
@@ -1207,17 +1218,37 @@ public sealed class Plugin : IDalamudPlugin
         "Rampart", TankNinetySecondCooldown(), TankMajorCooldown(), TankShortCooldown(), TankInvulnerability(),
         TankBuddyCooldown(), "Nascent Flash", "Oblation", "Intervention", "Equilibrium", "Aurora");
 
-    private IEnumerable<TimelineItem> ApplicableTimeline()
+    private IEnumerable<TimelineItem> ApplicableTimeline(bool activePhaseOnly = false)
     {
         var applicable = SelectedFight.Timeline
             .Where(item =>
                 item.TimeSeconds >= 0 &&
+                (!activePhaseOnly || TimelinePhase(item) == currentPhase) &&
                 (item.TargetJob == "Any Job" || item.TargetJob == configuration.SelectedJob) &&
                 (item.TargetRole == "Any Role" || NormalizeRole(item.TargetRole) == NormalizeRole(configuration.SelectedRole)) &&
                 (item.TargetCoTankJob == "Any Tank" || item.TargetCoTankJob == configuration.SelectedCoTankJob) &&
                 ResolveSkills(item.Skill).Any())
             .OrderBy(item => item.TimeSeconds);
         return CollapseRepeatedSequences(applicable);
+    }
+
+    private string TimelinePhase(TimelineItem item)
+    {
+        var phaseSeparator = item.Note.IndexOf('|');
+        if (phaseSeparator > 0)
+        {
+            var phaseLabel = item.Note[..phaseSeparator].Trim();
+            var labeledPhase = SelectedFight.Phases.FirstOrDefault(phase =>
+                phase.Key.Equals(phaseLabel, StringComparison.OrdinalIgnoreCase) ||
+                phase.Key.StartsWith($"{phaseLabel} ", StringComparison.OrdinalIgnoreCase));
+            if (labeledPhase is not null)
+                return labeledPhase.Key;
+        }
+
+        return SelectedFight.Phases
+            .Where(phase => phase.StartSeconds <= item.TimeSeconds)
+            .OrderByDescending(phase => phase.StartSeconds)
+            .FirstOrDefault()?.Key ?? SelectedFight.Phases.FirstOrDefault()?.Key ?? string.Empty;
     }
 
     private IEnumerable<TimelineItem> CollapseRepeatedSequences(IEnumerable<TimelineItem> items)

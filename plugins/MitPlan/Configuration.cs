@@ -22,6 +22,7 @@ public sealed class Configuration : IPluginConfiguration
     public int LeadSeconds { get; set; } = 6;
     public int KeepSeconds { get; set; } = 4;
     public bool EnableAudioAlert { get; set; }
+    public bool EnablePersonalTankMitAlerts { get; set; } = true;
     public AudioAlertMode AudioAlertMode { get; set; } = AudioAlertMode.Sound;
     public string TtsText { get; set; } = "Use {skills}";
     public AlertDisplayMode AlertDisplay { get; set; } = AlertDisplayMode.NameAndIcon;
