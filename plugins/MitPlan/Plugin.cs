@@ -303,7 +303,8 @@ public sealed class Plugin : IDalamudPlugin
         var selectedRole = configuration.SelectedRole;
         var jobChanged = DrawCombo("Job", Jobs, ref selectedJob);
         var availableRoles = RolesForJob(selectedJob);
-        var roleAdjusted = !availableRoles.Contains(selectedRole);
+        var healerRoleAdjusted = jobChanged && selectedJob is "WHM" or "AST" or "SCH" or "SGE";
+        var roleAdjusted = healerRoleAdjusted || !availableRoles.Contains(selectedRole);
         if (roleAdjusted)
             selectedRole = DefaultRoleForJob(selectedJob);
         var roleChanged = DrawCombo("Role / slot", availableRoles, ref selectedRole);
