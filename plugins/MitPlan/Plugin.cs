@@ -218,13 +218,20 @@ public sealed class Plugin : IDalamudPlugin
         var current = new HashSet<(nint Address, uint ActionId)>();
         foreach (var battleChara in objectTable.OfType<IBattleChara>())
         {
-            if (!battleChara.IsCasting || battleChara.CastActionId == 0)
-                continue;
-            var key = (battleChara.Address, battleChara.CastActionId);
-            current.Add(key);
-            if (activeCasts.Contains(key))
-                continue;
-            ProcessSyncEvent(TimelineSyncEventType.CastStart, battleChara.CastActionId);
+            try
+            {
+                if (!battleChara.IsCasting || battleChara.CastActionId == 0)
+                    continue;
+                var key = (battleChara.Address, battleChara.CastActionId);
+                current.Add(key);
+                if (activeCasts.Contains(key))
+                    continue;
+                ProcessSyncEvent(TimelineSyncEventType.CastStart, battleChara.CastActionId);
+            }
+            catch (NullReferenceException)
+            {
+                // Dalamud objects can disappear between ObjectTable enumeration and property access.
+            }
         }
         activeCasts.Clear();
         activeCasts.UnionWith(current);
@@ -240,14 +247,23 @@ public sealed class Plugin : IDalamudPlugin
     {
         var current = new HashSet<(nint Address, uint StatusId)>();
         foreach (var battleChara in objectTable.OfType<IBattleChara>())
-        foreach (var status in battleChara.StatusList)
         {
-            if (status.StatusId == 0)
-                continue;
-            var key = (battleChara.Address, status.StatusId);
-            current.Add(key);
-            if (!activeStatuses.Contains(key))
-                ProcessSyncEvent(TimelineSyncEventType.StatusGain, status.StatusId);
+            try
+            {
+                foreach (var status in battleChara.StatusList)
+                {
+                    if (status.StatusId == 0)
+                        continue;
+                    var key = (battleChara.Address, status.StatusId);
+                    current.Add(key);
+                    if (!activeStatuses.Contains(key))
+                        ProcessSyncEvent(TimelineSyncEventType.StatusGain, status.StatusId);
+                }
+            }
+            catch (NullReferenceException)
+            {
+                // Skip actors that despawn while their status list is being read.
+            }
         }
         activeStatuses.Clear();
         activeStatuses.UnionWith(current);
