@@ -414,18 +414,36 @@ public sealed class Plugin : IDalamudPlugin
         if (!string.IsNullOrWhiteSpace(currentFight.PresetStatus))
             ImGui.TextWrapped(currentFight.PresetStatus);
         if (!string.IsNullOrWhiteSpace(currentFight.SourceUrl))
-            ImGui.TextDisabled($"Source: {currentFight.SourceUrl}");
+        {
+            ImGui.TextDisabled("Source:");
+            ImGui.SameLine();
+            var sourceUrl = currentFight.SourceUrl;
+            ImGui.SetNextItemWidth(-150);
+            ImGui.InputText("##FightSourceUrl", ref sourceUrl, 1024, ImGuiInputTextFlags.ReadOnly);
+            ImGui.SameLine();
+            if (ImGui.Button("Copy to clipboard"))
+                ImGui.SetClipboardText(currentFight.SourceUrl);
+        }
 
         if (configuration.Fights.Count > 1)
         {
-            ImGui.SameLine();
+            var deleteUnlocked = ImGui.GetIO().KeyCtrl && ImGui.GetIO().KeyShift;
+            if (!deleteUnlocked)
+                ImGui.BeginDisabled();
             if (ImGui.Button("Delete selected fight"))
                 ImGui.OpenPopup("DeleteFightConfirm");
+            if (!deleteUnlocked)
+                ImGui.EndDisabled();
+            ImGui.SameLine();
+            ImGui.TextDisabled("Hold Ctrl+Shift to unlock");
         }
 
         if (ImGui.BeginPopupModal("DeleteFightConfirm", ImGuiWindowFlags.AlwaysAutoResize))
         {
             ImGui.TextWrapped($"Delete '{currentFight.Name}' and all {currentFight.Timeline.Count} timeline entries?");
+            var deleteUnlocked = ImGui.GetIO().KeyCtrl && ImGui.GetIO().KeyShift;
+            if (!deleteUnlocked)
+                ImGui.BeginDisabled();
             if (ImGui.Button("Delete"))
             {
                 configuration.Fights.Remove(currentFight);
@@ -435,6 +453,8 @@ public sealed class Plugin : IDalamudPlugin
                 Save();
                 ImGui.CloseCurrentPopup();
             }
+            if (!deleteUnlocked)
+                ImGui.EndDisabled();
             ImGui.SameLine();
             if (ImGui.Button("Cancel"))
                 ImGui.CloseCurrentPopup();
@@ -618,6 +638,31 @@ public sealed class Plugin : IDalamudPlugin
             configuration.ShowOverlay = showOverlay;
             Save();
         }
+        var opacityPercent = (int)MathF.Round(configuration.OverlayOpacity * 100f);
+        ImGui.SetNextItemWidth(180);
+        if (ImGui.SliderInt("Overlay opacity", ref opacityPercent, 10, 100, "%d%%"))
+        {
+            configuration.OverlayOpacity = opacityPercent / 100f;
+            Save();
+        }
+        var textColor = ColorFromConfig(configuration.OverlayTextColor);
+        if (ImGui.ColorEdit4("Text color", ref textColor, ImGuiColorEditFlags.NoAlpha))
+        {
+            configuration.OverlayTextColor = ColorToConfig(textColor);
+            Save();
+        }
+        var glowText = configuration.GlowText;
+        if (ImGui.Checkbox("Glow text", ref glowText))
+        {
+            configuration.GlowText = glowText;
+            Save();
+        }
+        var glowColor = ColorFromConfig(configuration.OverlayGlowColor);
+        if (ImGui.ColorEdit4("Glow color", ref glowColor, ImGuiColorEditFlags.NoAlpha))
+        {
+            configuration.OverlayGlowColor = ColorToConfig(glowColor);
+            Save();
+        }
         var lead = configuration.LeadSeconds;
         ImGui.SetNextItemWidth(100);
         if (ImGui.InputInt("Show mitigation this many seconds early", ref lead))
@@ -682,6 +727,7 @@ public sealed class Plugin : IDalamudPlugin
         if (active.Count == 0)
             return;
 
+        ImGui.PushStyleVar(ImGuiStyleVar.Alpha, configuration.OverlayOpacity);
         ImGui.SetNextWindowSize(new Vector2(260, 0), ImGuiCond.FirstUseEver);
         var overlayOpen = true;
         if (ImGui.Begin("MitPlan##Overlay", ref overlayOpen,
@@ -693,6 +739,7 @@ public sealed class Plugin : IDalamudPlugin
                 DrawSkillAlert(skill);
         }
         ImGui.End();
+        ImGui.PopStyleVar();
 
         if (!overlayOpen)
         {
@@ -707,7 +754,7 @@ public sealed class Plugin : IDalamudPlugin
         var showIcon = configuration.AlertDisplay != AlertDisplayMode.NameOnly;
         if (showName)
         {
-            ImGui.Text($"Use: {skill}");
+            ImGui.TextColored(CurrentAlertTextColor(), $"Use: {skill}");
             if (showIcon)
                 ImGui.SameLine();
         }
@@ -715,9 +762,47 @@ public sealed class Plugin : IDalamudPlugin
         {
             var texture = textureProvider.GetFromGameIcon(new GameIconLookup(iconId, false, true, null)).GetWrapOrEmpty();
             ImGui.Image(texture.Handle, new Vector2(36, 36));
+            DrawComboHighlight(ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
         }
         else if (showIcon && !showName)
             ImGui.TextDisabled("?");
+    }
+
+    private Vector4 CurrentAlertTextColor()
+    {
+        var textColor = ColorFromConfig(configuration.OverlayTextColor);
+        if (!configuration.GlowText)
+            return textColor;
+
+        var glowColor = ColorFromConfig(configuration.OverlayGlowColor);
+        var phase = MathF.Sin((float)ImGui.GetTime() * 2.8f) * 0.5f + 0.5f;
+        var smoothPhase = phase * phase * (3f - 2f * phase);
+        return Vector4.Lerp(textColor, glowColor, smoothPhase);
+    }
+
+    private static Vector4 ColorFromConfig(float[] color) =>
+        color is { Length: 4 } ? new Vector4(color[0], color[1], color[2], color[3]) : Vector4.One;
+
+    private static float[] ColorToConfig(Vector4 color) =>
+        [color.X, color.Y, color.Z, 1f];
+
+    private static void DrawComboHighlight(Vector2 min, Vector2 max)
+    {
+        var drawList = ImGui.GetWindowDrawList();
+        var center = (min + max) * 0.5f;
+        var radius = MathF.Min(max.X - min.X, max.Y - min.Y) * 0.47f;
+        var animation = (float)ImGui.GetTime() * 2.8f;
+        var pulse = 0.72f + 0.28f * (MathF.Sin(animation * 1.7f) * 0.5f + 0.5f);
+        var glowColor = ImGui.GetColorU32(new Vector4(1f, 0.72f, 0.08f, 0.30f * pulse));
+        var brightColor = ImGui.GetColorU32(new Vector4(1f, 0.88f, 0.22f, 0.95f * pulse));
+
+        drawList.AddCircle(center, radius, glowColor, 48, 4.5f);
+        for (var segment = 0; segment < 4; segment++)
+        {
+            var start = animation + segment * MathF.PI * 0.5f;
+            drawList.PathArcTo(center, radius, start, start + 0.72f, 10);
+            drawList.PathStroke(brightColor, ImDrawFlags.None, 2.2f);
+        }
     }
 
     private bool TryFindActionIcon(string skill, out uint iconId)
