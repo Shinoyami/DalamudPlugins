@@ -760,8 +760,20 @@ public sealed class Plugin : IDalamudPlugin
         };
     }
 
-    private IEnumerable<string> ResolveSkills(string instruction) =>
-        SplitSkills(instruction).SelectMany(ResolveSkillNames);
+    private IEnumerable<string> ResolveSkills(string instruction)
+    {
+        foreach (var component in SplitSkills(instruction))
+        {
+            var buddyTarget = IsExplicitBuddyInstruction(component);
+            foreach (var skill in ResolveSkillNames(component))
+                yield return buddyTarget ? $"{skill} (Buddy)" : skill;
+        }
+    }
+
+    private static bool IsExplicitBuddyInstruction(string instruction) =>
+        ContainsAny(instruction, "Buddy Mit", "Buddy", "Co-tank", "Cotank", "Co tank") ||
+        System.Text.RegularExpressions.Regex.IsMatch(instruction,
+            @"\b(?:on|to|assist)\s+(?:MT|OT)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     private IEnumerable<string> ResolveSkillNames(string instruction)
     {
@@ -770,7 +782,7 @@ public sealed class Plugin : IDalamudPlugin
             return ["Rampart", TankMajorCooldown(), TankShortCooldown()];
         if (ContainsAny(cleaned, "90s", "90 sec", "90-second", "thrill", "bulwark", "dark mind", "camouflage", "camo"))
             return [TankNinetySecondCooldown()];
-        if (ContainsAny(cleaned, "2min", "2 min", "2m", "120s", "120 sec", "30%", "big cd"))
+        if (ContainsAny(cleaned, "2min", "2 min", "2m", "120s", "120 sec", "30%", "40%", "big cd"))
             return [TankMajorCooldown()];
         if (ContainsAny(cleaned, "fast cd", "small cd", "short cd", "short", "25s", "25 sec"))
             return [TankShortCooldown()];
