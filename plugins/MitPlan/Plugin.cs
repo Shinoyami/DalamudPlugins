@@ -1,15 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
 using System.Numerics;
-using System.Threading;
-using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.Command;
 using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Objects.Types;
+using Dalamud.Interface.Textures;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using FFXIVClientStructs.FFXIV.Client.Game;
 
 namespace MitPlan;
 
@@ -33,62 +33,89 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IFramework framework;
     private readonly ICondition condition;
     private readonly ICommandManager commandManager;
-    private readonly IPluginLog log;
-    private readonly HttpClient httpClient = new() { Timeout = TimeSpan.FromSeconds(20) };
-    private readonly GoogleSheetLoader loader;
-    private readonly object dataLock = new();
-
+    private readonly IObjectTable objectTable;
+    private readonly IDataManager dataManager;
+    private readonly ITextureProvider textureProvider;
+    private readonly ActionEffectWatcher actionEffectWatcher;
     private Configuration configuration;
-    private IReadOnlyList<PhasePlan> phases = [];
-    private IReadOnlyList<MitigationReminder> reminders = [];
-    private CancellationTokenSource? loadCancellation;
+
     private DateTime? pullStartedAt;
     private bool wasInCombat;
     private bool mainWindowOpen = true;
-    private string loadStatus = "Not loaded";
-    private bool loading;
+    private string newFightName = string.Empty;
+    private string newFightCategory = "Custom";
+    private string entryTime = string.Empty;
+    private string entrySkill = string.Empty;
+    private string entryNote = string.Empty;
+    private string entryTargetJob = "Any Job";
+    private string entryTargetRole = "Any Role";
+    private string? editingEntryId;
+    private string editorStatus = string.Empty;
+    private readonly HashSet<(nint Address, uint ActionId)> activeCasts = [];
+    private readonly HashSet<string> firedSyncTriggers = [];
+    private readonly Dictionary<string, DateTime> lastTriggerTimes = [];
+    private readonly HashSet<(nint Address, uint StatusId)> activeStatuses = [];
+    private readonly HashSet<uint> seenActorDataIds = [];
+    private readonly HashSet<string> firedStateTransitions = [];
+    private string currentPhase = string.Empty;
+    private string lastSyncStatus = string.Empty;
 
     public Plugin(
         IDalamudPluginInterface pluginInterface,
         IFramework framework,
         ICondition condition,
-        ICommandManager commandManager,
-        IPluginLog log)
+        IObjectTable objectTable,
+        IGameInteropProvider gameInteropProvider,
+        IDataManager dataManager,
+        ITextureProvider textureProvider,
+        ICommandManager commandManager)
     {
         this.pluginInterface = pluginInterface;
         this.framework = framework;
         this.condition = condition;
+        this.objectTable = objectTable;
+        this.dataManager = dataManager;
+        this.textureProvider = textureProvider;
+        actionEffectWatcher = new ActionEffectWatcher(gameInteropProvider);
         this.commandManager = commandManager;
-        this.log = log;
 
         configuration = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
-        loader = new GoogleSheetLoader(httpClient);
+        configuration.Migrate();
+        Save();
 
         commandManager.AddHandler(Command, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Open MitPlan. Arguments: start, stop, reset, reload."
+            HelpMessage = "Open MitPlan. Arguments: start, stop, reset."
         });
         framework.Update += OnFrameworkUpdate;
         pluginInterface.UiBuilder.Draw += Draw;
         pluginInterface.UiBuilder.OpenConfigUi += OpenConfig;
         pluginInterface.UiBuilder.OpenMainUi += OpenConfig;
-
-        _ = ReloadAsync();
     }
 
     public void Dispose()
     {
-        loadCancellation?.Cancel();
-        loadCancellation?.Dispose();
         framework.Update -= OnFrameworkUpdate;
         pluginInterface.UiBuilder.Draw -= Draw;
         pluginInterface.UiBuilder.OpenConfigUi -= OpenConfig;
         pluginInterface.UiBuilder.OpenMainUi -= OpenConfig;
         commandManager.RemoveHandler(Command);
-        httpClient.Dispose();
+        actionEffectWatcher.Dispose();
     }
 
     private void OpenConfig() => mainWindowOpen = true;
+
+    private FightPlan SelectedFight
+    {
+        get
+        {
+            var fight = configuration.Fights.FirstOrDefault(item => item.Id == configuration.SelectedFightId);
+            if (fight is not null)
+                return fight;
+            configuration.SelectedFightId = configuration.Fights[0].Id;
+            return configuration.Fights[0];
+        }
+    }
 
     private void OnCommand(string command, string arguments)
     {
@@ -100,9 +127,6 @@ public sealed class Plugin : IDalamudPlugin
                 break;
             case "stop":
                 pullStartedAt = null;
-                break;
-            case "reload":
-                _ = ReloadAsync();
                 break;
             default:
                 mainWindowOpen = true;
@@ -117,101 +141,138 @@ public sealed class Plugin : IDalamudPlugin
             StartTimer(0);
         else if (configuration.AutoStartWithCombat && !inCombat && wasInCombat)
             pullStartedAt = null;
-
+        if (inCombat)
+        {
+            CheckActorStateTransitions();
+            CheckTimelineSyncTriggers();
+            CheckResolvedAbilities();
+            CheckStatusTriggers();
+        }
+        else
+        {
+            activeCasts.Clear();
+            firedSyncTriggers.Clear();
+            lastTriggerTimes.Clear();
+            activeStatuses.Clear();
+            actionEffectWatcher.Clear();
+            currentPhase = string.Empty;
+            seenActorDataIds.Clear();
+            firedStateTransitions.Clear();
+        }
         wasInCombat = inCombat;
     }
 
-    private void StartTimer(int elapsedSeconds) =>
+    private void CheckActorStateTransitions()
+    {
+        var actors = objectTable.OfType<IBattleChara>().ToList();
+        foreach (var actor in actors)
+            seenActorDataIds.Add(actor.BaseId);
+
+        foreach (var transition in SelectedFight.StateTransitions.Where(item =>
+                     string.IsNullOrEmpty(item.RequiredPhase) || item.RequiredPhase == currentPhase))
+        {
+            var key = $"{transition.RequiredPhase}:{transition.ResultPhase}:{transition.TimelineSeconds}";
+            if (firedStateTransitions.Contains(key) || transition.ActorDataIds.Count == 0)
+                continue;
+            var matching = transition.ActorDataIds
+                .Select(id => actors.FirstOrDefault(actor => actor.BaseId == id))
+                .ToList();
+            bool ActorWasSeen(int index) => seenActorDataIds.Contains(transition.ActorDataIds[index]);
+            var matched = transition.Condition switch
+            {
+                ActorStateCondition.Untargetable => matching[0] is { IsTargetable: false },
+                ActorStateCondition.UntargetableBelowFullHp => matching[0] is { IsTargetable: false } actor && actor.CurrentHp < actor.MaxHp,
+                ActorStateCondition.UntargetableAtOneHp => matching[0] is { IsTargetable: false, CurrentHp: <= 1 },
+                ActorStateCondition.AtOneHpNotCasting => matching[0] is { CurrentHp: <= 1, IsCasting: false },
+                ActorStateCondition.Targetable => matching[0] is { IsTargetable: true },
+                ActorStateCondition.DeadOrDestroyed => ActorWasSeen(0) && (matching[0] is null || matching[0]!.IsDead),
+                ActorStateCondition.AnyDeadOrDestroyed => matching.Select((actor, index) => ActorWasSeen(index) && (actor is null || actor.IsDead)).Any(value => value),
+                ActorStateCondition.AllDeadOrDestroyed => matching.Select((actor, index) => ActorWasSeen(index) && (actor is null || actor.IsDead)).All(value => value),
+                ActorStateCondition.AllUntargetableAtOneHp => matching.All(actor => actor is { IsTargetable: false, CurrentHp: <= 1 }),
+                ActorStateCondition.AllUntargetableWithAnyBelowFullHp => matching.All(actor => actor is { IsTargetable: false }) && matching.Any(actor => actor!.CurrentHp < actor.MaxHp),
+                _ => false,
+            };
+            if (!matched)
+                continue;
+            StartTimer(transition.TimelineSeconds);
+            currentPhase = transition.ResultPhase;
+            firedStateTransitions.Add(key);
+            lastSyncStatus = $"Phase changed to {transition.ResultPhase}: {transition.Name}.";
+        }
+    }
+
+    private void CheckTimelineSyncTriggers()
+    {
+        var current = new HashSet<(nint Address, uint ActionId)>();
+        foreach (var battleChara in objectTable.OfType<IBattleChara>())
+        {
+            if (!battleChara.IsCasting || battleChara.CastActionId == 0)
+                continue;
+            var key = (battleChara.Address, battleChara.CastActionId);
+            current.Add(key);
+            if (activeCasts.Contains(key))
+                continue;
+            ProcessSyncEvent(TimelineSyncEventType.CastStart, battleChara.CastActionId);
+        }
+        activeCasts.Clear();
+        activeCasts.UnionWith(current);
+    }
+
+    private void CheckResolvedAbilities()
+    {
+        while (actionEffectWatcher.TryDequeue(out var actionId))
+            ProcessSyncEvent(TimelineSyncEventType.Ability, actionId);
+    }
+
+    private void CheckStatusTriggers()
+    {
+        var current = new HashSet<(nint Address, uint StatusId)>();
+        foreach (var battleChara in objectTable.OfType<IBattleChara>())
+        foreach (var status in battleChara.StatusList)
+        {
+            if (status.StatusId == 0)
+                continue;
+            var key = (battleChara.Address, status.StatusId);
+            current.Add(key);
+            if (!activeStatuses.Contains(key))
+                ProcessSyncEvent(TimelineSyncEventType.StatusGain, status.StatusId);
+        }
+        activeStatuses.Clear();
+        activeStatuses.UnionWith(current);
+    }
+
+    private void ProcessSyncEvent(TimelineSyncEventType eventType, uint eventId)
+    {
+        foreach (var trigger in SelectedFight.SyncTriggers.Where(item => item.EventType == eventType && item.EventId == eventId))
+        {
+            var key = $"{eventType}:{eventId:X}:{trigger.RequiredPhase}:{trigger.ResultPhase}:{trigger.TimelineSeconds}";
+            if (!string.IsNullOrEmpty(trigger.RequiredPhase) && currentPhase != trigger.RequiredPhase)
+                continue;
+            if (firedSyncTriggers.Contains(key))
+                continue;
+            if (trigger.SuppressSeconds > 0 && lastTriggerTimes.TryGetValue(key, out var last) &&
+                DateTime.UtcNow - last < TimeSpan.FromSeconds(trigger.SuppressSeconds))
+                continue;
+
+            StartTimer(trigger.TimelineSeconds);
+            firedSyncTriggers.Add(key);
+            lastTriggerTimes[key] = DateTime.UtcNow;
+            if (!string.IsNullOrEmpty(trigger.ResultPhase))
+                currentPhase = trigger.ResultPhase;
+            lastSyncStatus = $"Auto-synced {currentPhase} at {FormatTime(trigger.TimelineSeconds)} from {trigger.Name} ({eventType} 0x{eventId:X}).";
+        }
+    }
+
+    private void StartTimer(int elapsedSeconds)
+    {
         pullStartedAt = DateTime.UtcNow - TimeSpan.FromSeconds(Math.Max(0, elapsedSeconds));
+        currentPhase = SelectedFight.Phases.LastOrDefault(phase => phase.StartSeconds <= elapsedSeconds)?.Key ??
+                       SelectedFight.Phases.FirstOrDefault()?.Key ?? string.Empty;
+    }
 
     private int ElapsedSeconds => pullStartedAt is null
         ? 0
         : Math.Max(0, (int)(DateTime.UtcNow - pullStartedAt.Value).TotalSeconds);
-
-    private async Task ReloadAsync()
-    {
-        loadCancellation?.Cancel();
-        loadCancellation?.Dispose();
-        loadCancellation = new CancellationTokenSource();
-        loading = true;
-        loadStatus = "Downloading P1-P5...";
-
-        try
-        {
-            var loadedPhases = await loader.LoadAsync(configuration.SheetUrl, loadCancellation.Token);
-            var loadedReminders = BuildReminders(loadedPhases);
-            lock (dataLock)
-            {
-                phases = loadedPhases;
-                reminders = loadedReminders;
-            }
-
-            loadStatus = $"Loaded {loadedPhases.Sum(phase => phase.Entries.Count)} timeline rows; " +
-                         $"{loadedReminders.Count} assignments for {configuration.SelectedJob}/{ShortRole(configuration.SelectedRole)}.";
-        }
-        catch (OperationCanceledException)
-        {
-            loadStatus = "Reload cancelled.";
-        }
-        catch (Exception ex)
-        {
-            loadStatus = $"Load failed: {ex.Message}";
-            log.Error(ex, "Failed to load the mitigation sheet.");
-        }
-        finally
-        {
-            loading = false;
-        }
-    }
-
-    private IReadOnlyList<MitigationReminder> BuildReminders(IReadOnlyList<PhasePlan> loadedPhases)
-    {
-        var assignmentKey = AssignmentKey(configuration.SelectedJob, configuration.SelectedRole);
-        return loadedPhases
-            .SelectMany(phase => phase.Entries)
-            .Where(entry => entry.Assignments.TryGetValue(assignmentKey, out var text) && !string.IsNullOrWhiteSpace(text))
-            .Select(entry => new MitigationReminder(
-                entry.Phase,
-                entry.Mechanic,
-                entry.GlobalSeconds,
-                entry.Assignments[assignmentKey]))
-            .OrderBy(reminder => reminder.TimeSeconds)
-            .ToList();
-    }
-
-    private void Refilter()
-    {
-        lock (dataLock)
-            reminders = BuildReminders(phases);
-        Save();
-        loadStatus = $"Filtered {reminders.Count} assignments for {configuration.SelectedJob}/{ShortRole(configuration.SelectedRole)}.";
-    }
-
-    private static string AssignmentKey(string job, string role)
-    {
-        if (role.Contains("Healer", StringComparison.OrdinalIgnoreCase) && job is "WHM" or "AST" or "SCH" or "SGE")
-            return job;
-        if (role == "MT" || role == "OT")
-            return role;
-        if (role.Contains("D1", StringComparison.OrdinalIgnoreCase))
-            return "D1";
-        if (role.Contains("D2", StringComparison.OrdinalIgnoreCase))
-            return "D2";
-        if (role.Contains("D3", StringComparison.OrdinalIgnoreCase))
-            return "D3";
-        if (role.Contains("D4", StringComparison.OrdinalIgnoreCase))
-            return "D4";
-        return job;
-    }
-
-    private static string ShortRole(string role)
-    {
-        if (role.Contains("D1")) return "D1";
-        if (role.Contains("D2")) return "D2";
-        if (role.Contains("D3")) return "D3";
-        if (role.Contains("D4")) return "D4";
-        return role;
-    }
 
     private void Save() => pluginInterface.SavePluginConfig(configuration);
 
@@ -219,79 +280,333 @@ public sealed class Plugin : IDalamudPlugin
     {
         if (mainWindowOpen)
             DrawMainWindow();
-        if (configuration.ShowOverlay && pullStartedAt is not null)
+        if (configuration.ShowOverlay && (configuration.TestOverlay ||
+            pullStartedAt is not null && condition[ConditionFlag.InCombat] && IsSelectedFightActive()))
             DrawOverlay();
     }
 
     private void DrawMainWindow()
     {
-        ImGui.SetNextWindowSize(new Vector2(760, 620), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowSize(new Vector2(820, 700), ImGuiCond.FirstUseEver);
         if (!ImGui.Begin("MitPlan##Main", ref mainWindowOpen))
         {
             ImGui.End();
             return;
         }
 
-        ImGui.TextWrapped("Load a public Google Sheets mitigation plan, choose your job and party slot, then start or sync the encounter timer.");
-        ImGui.Separator();
+        ImGui.TextWrapped("Choose a category and fight. Timed reminders alert automatically; untimed source assignments can be given a time with Edit.");
+        DrawSectionHeader("Fight");
+        DrawFightSelector();
 
-        var sheetUrl = configuration.SheetUrl;
-        ImGui.SetNextItemWidth(-110);
-        if (ImGui.InputText("##SheetUrl", ref sheetUrl, 512))
-            configuration.SheetUrl = sheetUrl;
-        ImGui.SameLine();
-        if (ImGui.Button(loading ? "Loading..." : "Reload Sheet") && !loading)
-        {
-            Save();
-            _ = ReloadAsync();
-        }
-        ImGui.TextWrapped(loadStatus);
-
-        DrawSectionHeader("Player assignment");
+        DrawSectionHeader("Player");
         var selectedJob = configuration.SelectedJob;
         var selectedRole = configuration.SelectedRole;
-        if (DrawCombo("Job", Jobs, ref selectedJob) |
-            DrawCombo("Role / slot", Roles, ref selectedRole))
+        if (DrawCombo("Job", Jobs, ref selectedJob) | DrawCombo("Role / slot", Roles, ref selectedRole))
         {
             configuration.SelectedJob = selectedJob;
             configuration.SelectedRole = selectedRole;
-            Refilter();
+            Save();
         }
 
-        var compatibility = CompatibilityWarning(configuration.SelectedJob, configuration.SelectedRole);
-        if (compatibility is not null)
-            ImGui.TextColored(new Vector4(1f, 0.72f, 0.2f, 1f), compatibility);
+        DrawSectionHeader("Add or edit timeline reminder");
+        DrawEntryEditor();
 
-        DrawSectionHeader("Timer and alerts");
+        DrawSectionHeader($"{SelectedFight.Name} timeline");
+        DrawTimelineEditor();
+
+        DrawSectionHeader("Timer and overlay");
+        DrawTimerControls();
+        ImGui.End();
+    }
+
+    private void DrawFightSelector()
+    {
+        var currentFight = SelectedFight;
+        var categories = configuration.Fights.Select(fight => fight.Category).Distinct().OrderBy(value => value).ToArray();
+        var selectedCategory = currentFight.Category;
+        ImGui.SetNextItemWidth(220);
+        if (DrawCombo("Category", categories, ref selectedCategory))
+        {
+            var first = configuration.Fights.First(fight => fight.Category == selectedCategory);
+            configuration.SelectedFightId = first.Id;
+            CancelEdit();
+            pullStartedAt = null;
+            Save();
+            currentFight = first;
+        }
+
+        ImGui.SetNextItemWidth(420);
+        if (ImGui.BeginCombo("Selected fight", currentFight.Name))
+        {
+            foreach (var fight in configuration.Fights.Where(item => item.Category == currentFight.Category).OrderBy(item => item.Name))
+            {
+                var selected = fight.Id == currentFight.Id;
+                if (ImGui.Selectable(fight.Name, selected))
+                {
+                    configuration.SelectedFightId = fight.Id;
+                    CancelEdit();
+                    pullStartedAt = null;
+                    activeCasts.Clear();
+                    firedSyncTriggers.Clear();
+                    lastTriggerTimes.Clear();
+                    activeStatuses.Clear();
+                    actionEffectWatcher.Clear();
+                    currentPhase = string.Empty;
+                    Save();
+                }
+                if (selected)
+                    ImGui.SetItemDefaultFocus();
+            }
+            ImGui.EndCombo();
+        }
+
+        ImGui.SetNextItemWidth(420);
+        ImGui.InputText("New fight name", ref newFightName, 160);
+        var customCategories = new[] { "Savage", "Extreme", "Ultimate", "Custom" };
+        DrawCombo("New fight category", customCategories, ref newFightCategory);
+        ImGui.SameLine();
+        if (ImGui.Button("Add fight") && !string.IsNullOrWhiteSpace(newFightName))
+        {
+            var fight = new FightPlan { Name = newFightName.Trim(), Category = newFightCategory };
+            configuration.Fights.Add(fight);
+            configuration.SelectedFightId = fight.Id;
+            newFightName = string.Empty;
+            CancelEdit();
+            Save();
+        }
+
+        var rename = currentFight.Name;
+        ImGui.SetNextItemWidth(420);
+        if (ImGui.InputText("Rename selected fight", ref rename, 160) && !string.IsNullOrWhiteSpace(rename))
+        {
+            currentFight.Name = rename;
+            Save();
+        }
+
+        if (!string.IsNullOrWhiteSpace(currentFight.PresetStatus))
+            ImGui.TextWrapped(currentFight.PresetStatus);
+        if (!string.IsNullOrWhiteSpace(currentFight.SourceUrl))
+            ImGui.TextDisabled($"Source: {currentFight.SourceUrl}");
+
+        if (configuration.Fights.Count > 1)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button("Delete selected fight"))
+                ImGui.OpenPopup("DeleteFightConfirm");
+        }
+
+        if (ImGui.BeginPopupModal("DeleteFightConfirm", ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            ImGui.TextWrapped($"Delete '{currentFight.Name}' and all {currentFight.Timeline.Count} timeline entries?");
+            if (ImGui.Button("Delete"))
+            {
+                configuration.Fights.Remove(currentFight);
+                configuration.SelectedFightId = configuration.Fights[0].Id;
+                CancelEdit();
+                pullStartedAt = null;
+                Save();
+                ImGui.CloseCurrentPopup();
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Cancel"))
+                ImGui.CloseCurrentPopup();
+            ImGui.EndPopup();
+        }
+    }
+
+    private void DrawEntryEditor()
+    {
+        var jobTargets = Jobs.Prepend("Any Job").ToArray();
+        var roleTargets = Roles.Prepend("Any Role").ToArray();
+        DrawCombo("Reminder job", jobTargets, ref entryTargetJob);
+        DrawCombo("Reminder role / slot", roleTargets, ref entryTargetRole);
+        ImGui.TextDisabled("Example: Any Job + MT applies to every main tank; WAR + MT applies only to a WAR main tank.");
+        ImGui.SetNextItemWidth(100);
+        ImGui.InputText("Time (MM:SS)", ref entryTime, 16);
+        ImGui.SetNextItemWidth(-1);
+        ImGui.InputText("Skill / instruction", ref entrySkill, 300);
+        ImGui.SetNextItemWidth(-1);
+        ImGui.InputText("Mechanic / note (optional)", ref entryNote, 300);
+
+        var buttonText = editingEntryId is null ? "Add to timeline" : "Save changes";
+        if (ImGui.Button(buttonText))
+            SaveEntry();
+        if (editingEntryId is not null)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button("Cancel edit"))
+                CancelEdit();
+        }
+        if (!string.IsNullOrWhiteSpace(editorStatus))
+            ImGui.TextColored(new Vector4(1f, 0.72f, 0.2f, 1f), editorStatus);
+    }
+
+    private void SaveEntry()
+    {
+        if (!TryParseTime(entryTime, out var seconds))
+        {
+            editorStatus = "Enter a valid time such as 2:12 or 00:38.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(entrySkill))
+        {
+            editorStatus = "Enter a skill or instruction.";
+            return;
+        }
+
+        var fight = SelectedFight;
+        var existing = editingEntryId is null ? null : fight.Timeline.FirstOrDefault(item => item.Id == editingEntryId);
+        if (existing is null)
+        {
+            fight.Timeline.Add(new TimelineItem
+            {
+                TimeSeconds = seconds,
+                Skill = entrySkill.Trim(),
+                Note = entryNote.Trim(),
+                TargetJob = entryTargetJob,
+                TargetRole = entryTargetRole
+            });
+        }
+        else
+        {
+            existing.TimeSeconds = seconds;
+            existing.Skill = entrySkill.Trim();
+            existing.Note = entryNote.Trim();
+            existing.TargetJob = entryTargetJob;
+            existing.TargetRole = entryTargetRole;
+        }
+
+        fight.Timeline = fight.Timeline.OrderBy(item => item.TimeSeconds).ThenBy(item => item.Skill).ToList();
+        Save();
+        CancelEdit();
+    }
+
+    private void DrawTimelineEditor()
+    {
+        var fight = SelectedFight;
+        if (fight.Timeline.Count == 0)
+        {
+                ImGui.TextDisabled("No preset is available for this fight yet. Add reminders manually above.");
+            return;
+        }
+
+        string? deleteId = null;
+        if (ImGui.BeginTable("FightTimeline", 7,
+                ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY,
+                new Vector2(0, 260)))
+        {
+            ImGui.TableSetupColumn("Time", ImGuiTableColumnFlags.WidthFixed, 60);
+            ImGui.TableSetupColumn("Job", ImGuiTableColumnFlags.WidthFixed, 72);
+            ImGui.TableSetupColumn("Role", ImGuiTableColumnFlags.WidthFixed, 72);
+            ImGui.TableSetupColumn("Skill / instruction", ImGuiTableColumnFlags.WidthStretch, 0.45f);
+            ImGui.TableSetupColumn("Mechanic / note", ImGuiTableColumnFlags.WidthStretch, 0.4f);
+            ImGui.TableSetupColumn("Edit", ImGuiTableColumnFlags.WidthFixed, 52);
+            ImGui.TableSetupColumn("Delete", ImGuiTableColumnFlags.WidthFixed, 58);
+            ImGui.TableHeadersRow();
+
+            var orderedItems = fight.Timeline.OrderBy(entry => entry.TimeSeconds).ToList();
+            var phases = fight.Phases.OrderBy(phase => phase.StartSeconds).ToList();
+            var nextPhase = 0;
+            foreach (var item in orderedItems)
+            {
+                while (nextPhase < phases.Count && phases[nextPhase].StartSeconds <= item.TimeSeconds)
+                {
+                    DrawPhaseDivider(phases[nextPhase]);
+                    nextPhase++;
+                }
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn(); ImGui.Text(item.TimeSeconds < 0 ? "Untimed" : FormatTime(item.TimeSeconds));
+                ImGui.TableNextColumn(); ImGui.Text(item.TargetJob == "Any Job" ? "Any" : item.TargetJob);
+                ImGui.TableNextColumn(); ImGui.Text(item.TargetRole == "Any Role" ? "Any" : ShortRole(item.TargetRole));
+                ImGui.TableNextColumn(); ImGui.TextWrapped(item.Skill);
+                ImGui.TableNextColumn(); ImGui.TextWrapped(item.Note);
+                ImGui.TableNextColumn();
+                if (ImGui.SmallButton($"Edit##{item.Id}"))
+                    BeginEdit(item);
+                ImGui.TableNextColumn();
+                if (ImGui.SmallButton($"X##{item.Id}"))
+                    deleteId = item.Id;
+            }
+            ImGui.EndTable();
+        }
+
+        if (deleteId is not null)
+        {
+            fight.Timeline.RemoveAll(item => item.Id == deleteId);
+            if (editingEntryId == deleteId)
+                CancelEdit();
+            Save();
+        }
+    }
+
+    private static void DrawPhaseDivider(FightPhase phase)
+    {
+        ImGui.TableNextRow();
+        ImGui.TableSetColumnIndex(0);
+        ImGui.TextColored(new Vector4(0.35f, 0.8f, 1f, 1f), FormatTime(phase.StartSeconds));
+        ImGui.TableSetColumnIndex(1);
+        ImGui.TextColored(new Vector4(0.35f, 0.8f, 1f, 1f), phase.Name.ToUpperInvariant());
+    }
+
+    private void BeginEdit(TimelineItem item)
+    {
+        editingEntryId = item.Id;
+        entryTime = item.TimeSeconds < 0 ? string.Empty : FormatTime(item.TimeSeconds);
+        entrySkill = item.Skill;
+        entryNote = item.Note;
+        entryTargetJob = item.TargetJob;
+        entryTargetRole = item.TargetRole;
+        editorStatus = string.Empty;
+    }
+
+    private void CancelEdit()
+    {
+        editingEntryId = null;
+        entryTime = string.Empty;
+        entrySkill = string.Empty;
+        entryNote = string.Empty;
+        entryTargetJob = "Any Job";
+        entryTargetRole = "Any Role";
+        editorStatus = string.Empty;
+    }
+
+    private void DrawTimerControls()
+    {
         var autoStart = configuration.AutoStartWithCombat;
         if (ImGui.Checkbox("Automatically start at combat entry", ref autoStart))
         {
             configuration.AutoStartWithCombat = autoStart;
             Save();
         }
-
         var showOverlay = configuration.ShowOverlay;
         if (ImGui.Checkbox("Show alert overlay while timer is running", ref showOverlay))
         {
             configuration.ShowOverlay = showOverlay;
             Save();
         }
-
         var lead = configuration.LeadSeconds;
-        if (ImGui.SliderInt("Advance warning", ref lead, 1, 20, "%d seconds"))
+        ImGui.SetNextItemWidth(100);
+        if (ImGui.InputInt("Show mitigation this many seconds early", ref lead))
         {
-            configuration.LeadSeconds = lead;
+            configuration.LeadSeconds = Math.Clamp(lead, 0, 60);
+            Save();
+        }
+        var displayModes = new[] { "Skill name", "Skill icon", "Name + icon" };
+        var displayMode = (int)configuration.AlertDisplay;
+        ImGui.SetNextItemWidth(180);
+        if (ImGui.Combo("Overlay content", ref displayMode, displayModes, displayModes.Length))
+        {
+            configuration.AlertDisplay = (AlertDisplayMode)displayMode;
+            Save();
+        }
+        var testOverlay = configuration.TestOverlay;
+        if (ImGui.Checkbox("Test overlay (move it anywhere)", ref testOverlay))
+        {
+            configuration.TestOverlay = testOverlay;
             Save();
         }
 
-        var keep = configuration.KeepSeconds;
-        if (ImGui.SliderInt("Keep after due time", ref keep, 0, 15, "%d seconds"))
-        {
-            configuration.KeepSeconds = keep;
-            Save();
-        }
-
-        if (ImGui.Button(pullStartedAt is null ? "Start / reset pull" : "Reset pull"))
+        if (ImGui.Button(pullStartedAt is null ? "Start timeline" : "Reset timeline"))
             StartTimer(0);
         ImGui.SameLine();
         if (ImGui.Button("Stop"))
@@ -302,77 +617,61 @@ public sealed class Plugin : IDalamudPlugin
         ImGui.SameLine();
         if (ImGui.Button("+1 sec") && pullStartedAt is not null)
             pullStartedAt = pullStartedAt.Value.AddSeconds(-1);
-
         ImGui.Text($"Encounter time: {FormatTime(ElapsedSeconds)}");
+        if (!string.IsNullOrWhiteSpace(lastSyncStatus))
+            ImGui.TextColored(new Vector4(0.35f, 0.9f, 0.45f, 1f), lastSyncStatus);
 
-        IReadOnlyList<PhasePlan> phaseSnapshot;
-        IReadOnlyList<MitigationReminder> reminderSnapshot;
-        lock (dataLock)
+        if (SelectedFight.Phases.Count > 0)
         {
-            phaseSnapshot = phases;
-            reminderSnapshot = reminders;
-        }
-
-        if (phaseSnapshot.Count > 0)
-        {
-            ImGui.Text("Sync phase start now:");
-            foreach (var phase in phaseSnapshot)
+            ImGui.Text("Phase sync:");
+            foreach (var phase in SelectedFight.Phases)
             {
-                ImGui.SameLine();
-                if (ImGui.SmallButton($"{phase.Name.Split('|')[0].Trim()}##sync-{phase.Name}"))
+                if (ImGui.Button($"{phase.Name}##phase-{phase.StartSeconds}"))
                     StartTimer(phase.StartSeconds);
+                ImGui.SameLine();
             }
+            ImGui.NewLine();
+            ImGui.TextDisabled("Click as the named phase begins to remove timing drift from earlier phase pushes.");
         }
-
-        DrawSectionHeader("Upcoming assignments");
-        DrawUpcomingTable(reminderSnapshot, ElapsedSeconds, 12);
-        ImGui.End();
     }
 
     private void DrawOverlay()
     {
         var elapsed = ElapsedSeconds;
-        IReadOnlyList<MitigationReminder> snapshot;
-        lock (dataLock)
-            snapshot = reminders;
-
-        var active = snapshot
-            .Where(reminder => reminder.TimeSeconds - elapsed <= configuration.LeadSeconds &&
-                               reminder.TimeSeconds - elapsed >= -configuration.KeepSeconds)
-            .Take(4)
+        var active = ApplicableTimeline()
+            .Where(item => item.TimeSeconds - elapsed <= configuration.LeadSeconds &&
+                           item.TimeSeconds - elapsed >= -configuration.KeepSeconds)
+            .Take(5)
             .ToList();
-        var next = snapshot.FirstOrDefault(reminder => reminder.TimeSeconds - elapsed > configuration.LeadSeconds);
+        if (configuration.TestOverlay)
+            active = [new TimelineItem { Skill = "Reprisal" }, new TimelineItem { Skill = "Shake It Off" }];
+        if (active.Count == 0)
+            return;
 
-        ImGui.SetNextWindowSize(new Vector2(480, 0), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowSize(new Vector2(260, 0), ImGuiCond.FirstUseEver);
         var overlayOpen = true;
-        if (ImGui.Begin("MitPlan Alerts##Overlay", ref overlayOpen,
-                ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse))
+        if (ImGui.Begin("MitPlan##Overlay", ref overlayOpen,
+                ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoTitleBar))
         {
-            ImGui.Text($"{configuration.SelectedJob} / {ShortRole(configuration.SelectedRole)}    {FormatTime(elapsed)}");
-            ImGui.Separator();
-
-            if (active.Count == 0)
-            {
-                ImGui.TextDisabled("No mitigation due now.");
-            }
-            else
-            {
-                foreach (var reminder in active)
+            foreach (var item in active)
+            foreach (var skill in SplitSkills(item.Skill))
+                DrawSkillAlert(skill);
+            /* old detailed overlay
+                foreach (var item in active)
                 {
-                    var delta = reminder.TimeSeconds - elapsed;
-                    var color = delta <= 0
-                        ? new Vector4(1f, 0.25f, 0.2f, 1f)
-                        : new Vector4(1f, 0.85f, 0.15f, 1f);
-                    ImGui.TextColored(color, $"{(delta >= 0 ? $"IN {delta}s" : "NOW")} — {reminder.Assignment}");
-                    ImGui.TextWrapped($"{FormatTime(reminder.TimeSeconds)}  {reminder.Mechanic}  ({reminder.Phase.Split('|')[0].Trim()})");
+                    var delta = item.TimeSeconds - elapsed;
+                    var color = delta <= 0 ? new Vector4(1f, 0.25f, 0.2f, 1f) : new Vector4(1f, 0.85f, 0.15f, 1f);
+                    ImGui.TextColored(color, $"{(delta >= 0 ? $"IN {delta}s" : "NOW")} — {item.Skill}");
+                    if (!string.IsNullOrWhiteSpace(item.Note))
+                        ImGui.TextWrapped($"{FormatTime(item.TimeSeconds)}  {item.Note}");
                 }
             }
-
             if (next is not null)
             {
                 ImGui.Separator();
-                ImGui.TextDisabled($"Next: {FormatTime(next.TimeSeconds)} {next.Mechanic} — {SingleLine(next.Assignment)}");
+                ImGui.TextDisabled($"Next: {FormatTime(next.TimeSeconds)} — {SingleLine(next.Skill)}");
             }
+            */
         }
         ImGui.End();
 
@@ -381,6 +680,69 @@ public sealed class Plugin : IDalamudPlugin
             configuration.ShowOverlay = false;
             Save();
         }
+    }
+
+    private void DrawSkillAlert(string skill)
+    {
+        var showName = configuration.AlertDisplay != AlertDisplayMode.IconOnly;
+        var showIcon = configuration.AlertDisplay != AlertDisplayMode.NameOnly;
+        if (showName)
+        {
+            ImGui.Text($"Use: {skill}");
+            if (showIcon)
+                ImGui.SameLine();
+        }
+        if (showIcon && TryFindActionIcon(skill, out var iconId))
+        {
+            var texture = textureProvider.GetFromGameIcon(new GameIconLookup(iconId)).GetWrapOrEmpty();
+            ImGui.Image(texture.Handle, new Vector2(36, 36));
+        }
+        else if (showIcon && !showName)
+            ImGui.TextDisabled("?");
+    }
+
+    private bool TryFindActionIcon(string skill, out uint iconId)
+    {
+        var lookup = skill.Trim();
+        if (lookup.Contains("Party Mit", StringComparison.OrdinalIgnoreCase))
+            lookup = configuration.SelectedJob switch
+            {
+                "WAR" => "Shake It Off", "PLD" => "Divine Veil", "DRK" => "Dark Missionary",
+                "GNB" => "Heart of Light", "BRD" => "Troubadour", "MCH" => "Tactician",
+                "DNC" => "Shield Samba", _ => lookup,
+            };
+        if (lookup.Equals("Spreadlo", StringComparison.OrdinalIgnoreCase))
+            lookup = "Adloquium";
+        var actions = dataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>();
+        var action = actions.FirstOrDefault(row => row.Name.ToString().Equals(lookup, StringComparison.OrdinalIgnoreCase));
+        if (action.Icon == 0)
+            action = actions
+                .Where(row => row.Icon != 0 && row.Name.ToString().Length >= 4 &&
+                              lookup.Contains(row.Name.ToString(), StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(row => row.Name.ToString().Length)
+                .FirstOrDefault();
+        iconId = action.Icon;
+        return iconId != 0;
+    }
+
+    private static IEnumerable<string> SplitSkills(string value) => value
+        .Replace("â†’", "+").Replace("→", "+")
+        .Split('+', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+    private IEnumerable<TimelineItem> ApplicableTimeline() =>
+        SelectedFight.Timeline
+            .Where(item =>
+                item.TimeSeconds >= 0 &&
+                (item.TargetJob == "Any Job" || item.TargetJob == configuration.SelectedJob) &&
+                (item.TargetRole == "Any Role" || item.TargetRole == configuration.SelectedRole))
+            .OrderBy(item => item.TimeSeconds);
+
+    private unsafe bool IsSelectedFightActive()
+    {
+        if (SelectedFight.ContentFinderConditionId == 0)
+            return true;
+        var gameMain = GameMain.Instance();
+        return gameMain != null && gameMain->CurrentContentFinderConditionId == SelectedFight.ContentFinderConditionId;
     }
 
     private static bool DrawCombo(string label, IReadOnlyList<string> values, ref string selected)
@@ -405,6 +767,22 @@ public sealed class Plugin : IDalamudPlugin
         return changed;
     }
 
+    private static bool TryParseTime(string value, out int seconds)
+    {
+        seconds = 0;
+        var parts = value.Trim().Split(':');
+        if (parts.Length == 1 && int.TryParse(parts[0], out var rawSeconds) && rawSeconds >= 0)
+        {
+            seconds = rawSeconds;
+            return true;
+        }
+        if (parts.Length != 2 || !int.TryParse(parts[0], out var minutes) ||
+            !int.TryParse(parts[1], out var remainder) || minutes < 0 || remainder is < 0 or > 59)
+            return false;
+        seconds = minutes * 60 + remainder;
+        return true;
+    }
+
     private static void DrawSectionHeader(string text)
     {
         ImGui.Separator();
@@ -412,49 +790,13 @@ public sealed class Plugin : IDalamudPlugin
         ImGui.Separator();
     }
 
-    private static void DrawUpcomingTable(IReadOnlyList<MitigationReminder> reminders, int elapsed, int count)
+    private static string ShortRole(string role)
     {
-        var upcoming = reminders.Where(reminder => reminder.TimeSeconds >= elapsed - 2).Take(count).ToList();
-        if (ImGui.BeginTable("Upcoming", 4,
-                ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY,
-                new Vector2(0, 250)))
-        {
-            ImGui.TableSetupColumn("Time", ImGuiTableColumnFlags.WidthFixed, 60);
-            ImGui.TableSetupColumn("Phase", ImGuiTableColumnFlags.WidthFixed, 48);
-            ImGui.TableSetupColumn("Mechanic", ImGuiTableColumnFlags.WidthStretch, 0.45f);
-            ImGui.TableSetupColumn("Your assignment", ImGuiTableColumnFlags.WidthStretch, 0.55f);
-            ImGui.TableHeadersRow();
-            foreach (var reminder in upcoming)
-            {
-                ImGui.TableNextRow();
-                ImGui.TableNextColumn(); ImGui.Text(FormatTime(reminder.TimeSeconds));
-                ImGui.TableNextColumn(); ImGui.Text(reminder.Phase.Split('|')[0].Trim());
-                ImGui.TableNextColumn(); ImGui.TextWrapped(reminder.Mechanic);
-                ImGui.TableNextColumn(); ImGui.TextWrapped(reminder.Assignment);
-            }
-            ImGui.EndTable();
-        }
-    }
-
-    private static string? CompatibilityWarning(string job, string role)
-    {
-        var healer = job is "WHM" or "AST" or "SCH" or "SGE";
-        var tank = job is "PLD" or "WAR" or "DRK" or "GNB";
-        var physRanged = job is "BRD" or "MCH" or "DNC";
-        var caster = job is "BLM" or "SMN" or "RDM" or "PCT" or "BLU";
-        var melee = job is "DRG" or "MNK" or "NIN" or "RPR" or "SAM" or "VPR";
-
-        var compatible = role switch
-        {
-            "MT" or "OT" => tank,
-            "Pure Healer" => job is "WHM" or "AST",
-            "Shield Healer" => job is "SCH" or "SGE",
-            _ when role.Contains("D1") || role.Contains("D2") => melee,
-            _ when role.Contains("D3") => physRanged,
-            _ when role.Contains("D4") => caster,
-            _ => healer
-        };
-        return compatible ? null : "The selected job is unusual for this party slot; the slot's assignments will still be shown.";
+        if (role.Contains("D1")) return "D1";
+        if (role.Contains("D2")) return "D2";
+        if (role.Contains("D3")) return "D3";
+        if (role.Contains("D4")) return "D4";
+        return role;
     }
 
     private static string FormatTime(int totalSeconds) => $"{totalSeconds / 60}:{totalSeconds % 60:00}";
