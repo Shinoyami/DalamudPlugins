@@ -6,7 +6,7 @@ namespace MitPlan;
 
 public sealed class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; } = 5;
+    public int Version { get; set; } = 6;
     public string SelectedFightId { get; set; } = "dmu";
     public List<FightPlan> Fights { get; set; } = [FightPlan.CreateDefault()];
     public string SelectedJob { get; set; } = "WAR";
@@ -26,8 +26,22 @@ public sealed class Configuration : IPluginConfiguration
             SelectedFightId = Fights[0].Id;
         if (Version < 5 && LeadSeconds == 8)
             LeadSeconds = 6;
-        Version = 5;
+        if (Version < 6)
+        {
+            SelectedRole = RenameHealerRole(SelectedRole);
+            foreach (var fight in Fights)
+            foreach (var item in fight.Timeline)
+                item.TargetRole = RenameHealerRole(item.TargetRole);
+        }
+        Version = 6;
     }
+
+    private static string RenameHealerRole(string role) => role switch
+    {
+        "Pure Healer" => "Pure Healer (H1)",
+        "Shield Healer" => "Shield Healer (H2)",
+        _ => role,
+    };
 }
 
 public enum AlertDisplayMode

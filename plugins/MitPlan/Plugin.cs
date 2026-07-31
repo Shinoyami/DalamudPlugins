@@ -25,7 +25,7 @@ public sealed class Plugin : IDalamudPlugin
 
     internal static readonly string[] Roles =
     [
-        "MT", "OT", "Pure Healer", "Shield Healer", "Melee 1 (M1) (D1)",
+        "MT", "OT", "Pure Healer (H1)", "Shield Healer (H2)", "Melee 1 (M1) (D1)",
         "Melee 2 (M2) (D2)", "Phys Ranged (R1) (D3)", "Caster (R2) (D4)"
     ];
 
@@ -301,7 +301,13 @@ public sealed class Plugin : IDalamudPlugin
         DrawSectionHeader("Player");
         var selectedJob = configuration.SelectedJob;
         var selectedRole = configuration.SelectedRole;
-        if (DrawCombo("Job", Jobs, ref selectedJob) | DrawCombo("Role / slot", Roles, ref selectedRole))
+        var jobChanged = DrawCombo("Job", Jobs, ref selectedJob);
+        var availableRoles = RolesForJob(selectedJob);
+        var roleAdjusted = !availableRoles.Contains(selectedRole);
+        if (roleAdjusted)
+            selectedRole = DefaultRoleForJob(selectedJob);
+        var roleChanged = DrawCombo("Role / slot", availableRoles, ref selectedRole);
+        if (jobChanged || roleChanged || roleAdjusted)
         {
             configuration.SelectedJob = selectedJob;
             configuration.SelectedRole = selectedRole;
@@ -891,8 +897,37 @@ public sealed class Plugin : IDalamudPlugin
             .Where(item =>
                 item.TimeSeconds >= 0 &&
                 (item.TargetJob == "Any Job" || item.TargetJob == configuration.SelectedJob) &&
-                (item.TargetRole == "Any Role" || item.TargetRole == configuration.SelectedRole))
+                (item.TargetRole == "Any Role" || NormalizeRole(item.TargetRole) == NormalizeRole(configuration.SelectedRole)))
             .OrderBy(item => item.TimeSeconds);
+
+    private static string DefaultRoleForJob(string job) => job switch
+    {
+        "WAR" or "PLD" or "DRK" or "GNB" => "MT",
+        "WHM" or "AST" => "Pure Healer (H1)",
+        "SCH" or "SGE" => "Shield Healer (H2)",
+        "MNK" or "DRG" or "NIN" or "SAM" or "RPR" or "VPR" => "Melee 1 (M1) (D1)",
+        "BRD" or "MCH" or "DNC" => "Phys Ranged (R1) (D3)",
+        "BLM" or "SMN" or "RDM" or "PCT" or "BLU" => "Caster (R2) (D4)",
+        _ => "Melee 1 (M1) (D1)",
+    };
+
+    private static string[] RolesForJob(string job) => job switch
+    {
+        "WAR" or "PLD" or "DRK" or "GNB" => ["MT", "OT"],
+        "WHM" or "AST" or "SCH" or "SGE" => ["Pure Healer (H1)", "Shield Healer (H2)"],
+        "MNK" or "DRG" or "NIN" or "SAM" or "RPR" or "VPR" =>
+            ["Melee 1 (M1) (D1)", "Melee 2 (M2) (D2)"],
+        "BRD" or "MCH" or "DNC" or "BLM" or "SMN" or "RDM" or "PCT" or "BLU" =>
+            ["Melee 1 (M1) (D1)", "Melee 2 (M2) (D2)", "Phys Ranged (R1) (D3)", "Caster (R2) (D4)"],
+        _ => Roles,
+    };
+
+    private static string NormalizeRole(string role) => role switch
+    {
+        "Pure Healer" => "Pure Healer (H1)",
+        "Shield Healer" => "Shield Healer (H2)",
+        _ => role,
+    };
 
     private unsafe bool IsSelectedFightActive()
     {
