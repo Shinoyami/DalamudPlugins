@@ -62,6 +62,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly Dictionary<string, DateTime> lastTriggerTimes = [];
     private readonly HashSet<(nint Address, uint StatusId)> activeStatuses = [];
     private readonly HashSet<uint> seenActorDataIds = [];
+    private readonly Dictionary<uint, DateTime> missingActorSince = [];
     private readonly HashSet<string> firedStateTransitions = [];
     private readonly HashSet<string> playedAudioAlerts = [];
     private PendingTimelineSync? pendingTimelineSync;
@@ -146,7 +147,10 @@ public sealed class Plugin : IDalamudPlugin
     {
         var inCombat = condition[ConditionFlag.InCombat];
         if (configuration.AutoStartWithCombat && inCombat && !wasInCombat)
+        {
             StartTimer(0);
+            lastSyncStatus = "Encounter clock synced to combat start.";
+        }
         else if (configuration.AutoStartWithCombat && !inCombat && wasInCombat)
             pullStartedAt = null;
         if (inCombat)
@@ -166,6 +170,7 @@ public sealed class Plugin : IDalamudPlugin
             actionEffectWatcher.Clear();
             currentPhase = string.Empty;
             seenActorDataIds.Clear();
+            missingActorSince.Clear();
             firedStateTransitions.Clear();
             pendingTimelineSync = null;
             playedAudioAlerts.Clear();
@@ -178,6 +183,14 @@ public sealed class Plugin : IDalamudPlugin
         var actors = objectTable.OfType<IBattleChara>().ToList();
         foreach (var actor in actors)
             seenActorDataIds.Add(actor.BaseId);
+        var now = DateTime.UtcNow;
+        foreach (var actorId in SelectedFight.StateTransitions.SelectMany(item => item.ActorDataIds).Distinct())
+        {
+            if (actors.Any(actor => actor.BaseId == actorId))
+                missingActorSince.Remove(actorId);
+            else if (seenActorDataIds.Contains(actorId))
+                missingActorSince.TryAdd(actorId, now);
+        }
 
         foreach (var transition in SelectedFight.StateTransitions.Where(item =>
                      string.IsNullOrEmpty(item.RequiredPhase) || item.RequiredPhase == currentPhase))
@@ -189,18 +202,30 @@ public sealed class Plugin : IDalamudPlugin
                 .Select(id => actors.FirstOrDefault(actor => actor.BaseId == id))
                 .ToList();
             bool ActorWasSeen(int index) => seenActorDataIds.Contains(transition.ActorDataIds[index]);
+            bool ActorHasDisappeared(int index) =>
+                ActorWasSeen(index) &&
+                missingActorSince.TryGetValue(transition.ActorDataIds[index], out var missingSince) &&
+                now - missingSince >= TimeSpan.FromMilliseconds(500);
             var matched = transition.Condition switch
             {
-                ActorStateCondition.Untargetable => matching[0] is { IsTargetable: false },
-                ActorStateCondition.UntargetableBelowFullHp => matching[0] is { IsTargetable: false } actor && actor.CurrentHp < actor.MaxHp,
-                ActorStateCondition.UntargetableAtOneHp => matching[0] is { IsTargetable: false, CurrentHp: <= 1 },
+                ActorStateCondition.Untargetable => ActorHasDisappeared(0) ||
+                    matching[0] is { IsTargetable: false },
+                ActorStateCondition.UntargetableBelowFullHp => ActorWasSeen(0) &&
+                    (ActorHasDisappeared(0) || matching[0] is { IsTargetable: false } actor && actor.CurrentHp < actor.MaxHp),
+                ActorStateCondition.UntargetableAtOneHp => ActorWasSeen(0) &&
+                    (ActorHasDisappeared(0) || matching[0] is { IsTargetable: false, CurrentHp: <= 1 }),
                 ActorStateCondition.AtOneHpNotCasting => matching[0] is { CurrentHp: <= 1, IsCasting: false },
                 ActorStateCondition.Targetable => matching[0] is { IsTargetable: true },
-                ActorStateCondition.DeadOrDestroyed => ActorWasSeen(0) && (matching[0] is null || matching[0]!.IsDead),
-                ActorStateCondition.AnyDeadOrDestroyed => matching.Select((actor, index) => ActorWasSeen(index) && (actor is null || actor.IsDead)).Any(value => value),
-                ActorStateCondition.AllDeadOrDestroyed => matching.Select((actor, index) => ActorWasSeen(index) && (actor is null || actor.IsDead)).All(value => value),
-                ActorStateCondition.AllUntargetableAtOneHp => matching.All(actor => actor is { IsTargetable: false, CurrentHp: <= 1 }),
-                ActorStateCondition.AllUntargetableWithAnyBelowFullHp => matching.All(actor => actor is { IsTargetable: false }) && matching.Any(actor => actor!.CurrentHp < actor.MaxHp),
+                ActorStateCondition.DeadOrDestroyed => ActorHasDisappeared(0) || matching[0] is { IsDead: true },
+                ActorStateCondition.AnyDeadOrDestroyed => matching.Select((actor, index) =>
+                    ActorHasDisappeared(index) || actor is { IsDead: true }).Any(value => value),
+                ActorStateCondition.AllDeadOrDestroyed => matching.Select((actor, index) =>
+                    ActorHasDisappeared(index) || actor is { IsDead: true }).All(value => value),
+                ActorStateCondition.AllUntargetableAtOneHp => matching.Select((actor, index) =>
+                    ActorHasDisappeared(index) || actor is { IsTargetable: false, CurrentHp: <= 1 }).All(value => value),
+                ActorStateCondition.AllUntargetableWithAnyBelowFullHp =>
+                    matching.Select((actor, index) => ActorHasDisappeared(index) || actor is { IsTargetable: false }).All(value => value) &&
+                    matching.Select((actor, index) => ActorHasDisappeared(index) || actor is { } present && present.CurrentHp < present.MaxHp).Any(value => value),
                 _ => false,
             };
             if (!matched)
@@ -289,11 +314,18 @@ public sealed class Plugin : IDalamudPlugin
                 currentPhase = trigger.ResultPhase;
 
             var alertStartsAt = Math.Max(0, trigger.TimelineSeconds - configuration.LeadSeconds);
-            if (pullStartedAt is not null && ElapsedSeconds <= alertStartsAt)
+            var alertEndsAt = trigger.TimelineSeconds + configuration.KeepSeconds;
+            if (pullStartedAt is not null && ElapsedSeconds <= alertEndsAt)
             {
+                // If the anchor clock fell behind, show the current reminder now instead of waiting
+                // until after the observed mechanic. The full correction is applied once its alert ends.
+                if (ElapsedSeconds < alertStartsAt)
+                    StartTimer(alertStartsAt);
+                if (!string.IsNullOrEmpty(trigger.ResultPhase))
+                    currentPhase = trigger.ResultPhase;
                 pendingTimelineSync = new PendingTimelineSync(
                     trigger.TimelineSeconds, observedAt, trigger.ResultPhase, trigger.Name, eventType, eventId);
-                lastSyncStatus = $"Sync queued after the {FormatTime(trigger.TimelineSeconds)} alert: {trigger.Name}.";
+                lastSyncStatus = $"Sync queued after the active alert: {trigger.Name}.";
             }
             else
                 ApplyTimelineSync(trigger.TimelineSeconds, observedAt, trigger.ResultPhase, trigger.Name, eventType, eventId);
@@ -302,7 +334,8 @@ public sealed class Plugin : IDalamudPlugin
 
     private void ApplyPendingTimelineSync()
     {
-        if (pendingTimelineSync is not { } pending || ElapsedSeconds < pending.TimelineSeconds)
+        if (pendingTimelineSync is not { } pending ||
+            ElapsedSeconds < pending.TimelineSeconds + configuration.KeepSeconds)
             return;
 
         pendingTimelineSync = null;
