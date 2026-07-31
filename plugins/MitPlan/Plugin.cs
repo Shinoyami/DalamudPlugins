@@ -16,6 +16,7 @@ namespace MitPlan;
 public sealed class Plugin : IDalamudPlugin
 {
     private const string Command = "/mitplan";
+    private const int DuplicateSequenceWindowSeconds = 15;
 
     internal static readonly string[] Jobs =
     [
@@ -773,9 +774,16 @@ public sealed class Plugin : IDalamudPlugin
         {
             var buddyTarget = IsExplicitBuddyInstruction(component);
             foreach (var skill in ResolveSkillNames(component))
-                yield return buddyTarget ? $"{skill} (Buddy)" : skill;
+            {
+                if (IsSkillAvailableForSelectedJob(skill))
+                    yield return buddyTarget ? $"{skill} (Buddy)" : skill;
+            }
         }
     }
+
+    private bool IsSkillAvailableForSelectedJob(string skill) =>
+        !skill.Contains("Passage of Arms", StringComparison.OrdinalIgnoreCase) ||
+        configuration.SelectedJob == "PLD";
 
     private static bool IsExplicitBuddyInstruction(string instruction) =>
         ContainsAny(instruction, "Buddy Mit", "Buddy", "Co-tank", "Cotank", "Co tank") ||
@@ -893,13 +901,34 @@ public sealed class Plugin : IDalamudPlugin
         "Rampart", TankNinetySecondCooldown(), TankMajorCooldown(), TankShortCooldown(), TankInvulnerability(),
         TankBuddyCooldown(), "Nascent Flash", "Oblation", "Intervention", "Equilibrium", "Aurora");
 
-    private IEnumerable<TimelineItem> ApplicableTimeline() =>
-        SelectedFight.Timeline
+    private IEnumerable<TimelineItem> ApplicableTimeline()
+    {
+        var applicable = SelectedFight.Timeline
             .Where(item =>
                 item.TimeSeconds >= 0 &&
                 (item.TargetJob == "Any Job" || item.TargetJob == configuration.SelectedJob) &&
-                (item.TargetRole == "Any Role" || NormalizeRole(item.TargetRole) == NormalizeRole(configuration.SelectedRole)))
+                (item.TargetRole == "Any Role" || NormalizeRole(item.TargetRole) == NormalizeRole(configuration.SelectedRole)) &&
+                ResolveSkills(item.Skill).Any())
             .OrderBy(item => item.TimeSeconds);
+        return CollapseRepeatedSequences(applicable);
+    }
+
+    private IEnumerable<TimelineItem> CollapseRepeatedSequences(IEnumerable<TimelineItem> items)
+    {
+        var lastDisplayed = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in items)
+        {
+            var signature = string.Join("|", ResolveSkills(item.Skill)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(skill => skill, StringComparer.OrdinalIgnoreCase));
+            if (lastDisplayed.TryGetValue(signature, out var displayedTime) &&
+                item.TimeSeconds - displayedTime <= DuplicateSequenceWindowSeconds)
+                continue;
+
+            lastDisplayed[signature] = item.TimeSeconds;
+            yield return item;
+        }
+    }
 
     private static string DefaultRoleForJob(string job) => job switch
     {
