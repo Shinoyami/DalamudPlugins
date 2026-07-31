@@ -754,7 +754,7 @@ public sealed class Plugin : IDalamudPlugin
         var showIcon = configuration.AlertDisplay != AlertDisplayMode.NameOnly;
         if (showName)
         {
-            ImGui.TextColored(CurrentAlertTextColor(), $"Use: {skill}");
+            ImGui.TextColored(CurrentAlertTextColor(), skill);
             if (showIcon)
                 ImGui.SameLine();
         }
@@ -789,20 +789,49 @@ public sealed class Plugin : IDalamudPlugin
     private static void DrawComboHighlight(Vector2 min, Vector2 max)
     {
         var drawList = ImGui.GetWindowDrawList();
-        var center = (min + max) * 0.5f;
-        var radius = MathF.Min(max.X - min.X, max.Y - min.Y) * 0.47f;
-        var animation = (float)ImGui.GetTime() * 2.8f;
+        min += Vector2.One;
+        max -= Vector2.One;
+        var width = max.X - min.X;
+        var height = max.Y - min.Y;
+        var perimeter = 2f * (width + height);
+        var animation = (float)ImGui.GetTime();
         var pulse = 0.72f + 0.28f * (MathF.Sin(animation * 1.7f) * 0.5f + 0.5f);
         var glowColor = ImGui.GetColorU32(new Vector4(1f, 0.72f, 0.08f, 0.30f * pulse));
         var brightColor = ImGui.GetColorU32(new Vector4(1f, 0.88f, 0.22f, 0.95f * pulse));
 
-        drawList.AddCircle(center, radius, glowColor, 48, 4.5f);
-        for (var segment = 0; segment < 4; segment++)
+        drawList.AddLine(min, new Vector2(max.X, min.Y), glowColor, 4.5f);
+        drawList.AddLine(new Vector2(max.X, min.Y), max, glowColor, 4.5f);
+        drawList.AddLine(max, new Vector2(min.X, max.Y), glowColor, 4.5f);
+        drawList.AddLine(new Vector2(min.X, max.Y), min, glowColor, 4.5f);
+
+        const int movingSegments = 8;
+        const float segmentLength = 6f;
+        var travel = animation * 48f;
+        for (var segment = 0; segment < movingSegments; segment++)
         {
-            var start = animation + segment * MathF.PI * 0.5f;
-            drawList.PathArcTo(center, radius, start, start + 0.72f, 10);
+            var start = travel + segment * perimeter / movingSegments;
+            for (var point = 0; point <= 8; point++)
+                drawList.PathLineTo(PointOnSquare(min, max, start + segmentLength * point / 8f));
             drawList.PathStroke(brightColor, ImDrawFlags.None, 2.2f);
         }
+    }
+
+    private static Vector2 PointOnSquare(Vector2 min, Vector2 max, float distance)
+    {
+        var width = max.X - min.X;
+        var height = max.Y - min.Y;
+        var perimeter = 2f * (width + height);
+        distance = (distance % perimeter + perimeter) % perimeter;
+        if (distance <= width)
+            return new Vector2(min.X + distance, min.Y);
+        distance -= width;
+        if (distance <= height)
+            return new Vector2(max.X, min.Y + distance);
+        distance -= height;
+        if (distance <= width)
+            return new Vector2(max.X - distance, max.Y);
+        distance -= width;
+        return new Vector2(min.X, max.Y - distance);
     }
 
     private bool TryFindActionIcon(string skill, out uint iconId)
