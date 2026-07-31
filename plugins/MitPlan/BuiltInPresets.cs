@@ -128,7 +128,7 @@ internal static class BuiltInPresets
             IsBuiltIn = true,
             PresetRevision = 3,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1FmG8NL2DybieW9FuZrPF7w6iABFtGVEzwwoFPCjslZc/edit?usp=sharing",
-            PresetStatus = "PF / Ikuya / NAUR mitigation assignments with full/phase timing.",
+            PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-derived one-shot phase anchoring.",
             Phases =
             [
                 new FightPhase { Name = "P1 Lindwurm", Key = "P1 Lindwurm", StartSeconds = 0 },
@@ -136,11 +136,9 @@ internal static class BuiltInPresets
             ],
             SyncTriggers =
             [
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 46376u, TimelineSeconds = 612, Name = "P2 Arcadia Aflame", RequiredPhase = "P1 Lindwurm", ResultPhase = "P2 Lindwurm", SuppressSeconds = 0 },
             ],
-            StateTransitions =
-            [
-                new ActorStateTransition { RequiredPhase = "P1 Lindwurm", ResultPhase = "P2 Lindwurm", TimelineSeconds = 600, Condition = ActorStateCondition.Targetable, ActorDataIds = [19202u], Name = "Phase 2 Lindwurm becomes targetable" },
-            ],
+            StateTransitions = [],
             Timeline =
             [
                 Item(16, "Reprisal", "Phase 1 Lindwurm: The Fixer", "Any Job", "MT"),
@@ -322,7 +320,7 @@ internal static class BuiltInPresets
             IsBuiltIn = true,
             PresetRevision = 3,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1t4gHDNxppxK1rdYIjZyAEabNUREq5lK-KQLwuV3W77A/edit?gid=0#gid=0",
-            PresetStatus = "PF / Ikuya / NAUR mitigation assignments aligned to cactbot timestamps with automatic phase resynchronization.",
+            PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-derived one-shot phase anchoring.",
             Phases =
             [
                 new FightPhase { Name = "P1 Twintania", Key = "P1 Twintania", StartSeconds = 0 },
@@ -333,18 +331,12 @@ internal static class BuiltInPresets
             ],
             SyncTriggers =
             [
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 9900u, TimelineSeconds = 16, Name = "P1 Fireball", RequiredPhase = "", ResultPhase = "P1 Twintania", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 9912u, TimelineSeconds = 200, Name = "P2 Heavensfall", RequiredPhase = "P1 Twintania", ResultPhase = "P2 Nael", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 9937u, TimelineSeconds = 500, Name = "P3 Seventh Umbral Era", RequiredPhase = "P2 Nael", ResultPhase = "P3 Bahamut Prime", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 9960u, TimelineSeconds = 843, Name = "P4 Bahamut's Favor", RequiredPhase = "P3 Bahamut Prime", ResultPhase = "P4 Adds", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 9961u, TimelineSeconds = 1200, Name = "P5 Teraflare", RequiredPhase = "P4 Adds", ResultPhase = "P5 Golden Bahamut", SuppressSeconds = 0 },
             ],
-            StateTransitions =
-            [
-                new ActorStateTransition { RequiredPhase = "P1 Twintania", ResultPhase = "P2 Nael", TimelineSeconds = 200, Condition = ActorStateCondition.Untargetable, ActorDataIds = [8159u], Name = "Twintania becomes untargetable" },
-                new ActorStateTransition { RequiredPhase = "P2 Nael", ResultPhase = "P3 Bahamut Prime", TimelineSeconds = 500, Condition = ActorStateCondition.UntargetableAtOneHp, ActorDataIds = [8161u], Name = "Nael reaches 1 HP and becomes untargetable" },
-                new ActorStateTransition { RequiredPhase = "P4 Adds", ResultPhase = "P5 Golden Bahamut", TimelineSeconds = 1200, Condition = ActorStateCondition.AllDeadOrDestroyed, ActorDataIds = [8159u, 8161u], Name = "Twintania and Nael are defeated" },
-            ],
+            StateTransitions = [],
             Timeline =
             [
                 Item(7, "Rampart + Thrill", "Twintania: Plummet 1", "Any Job", "MT"),
@@ -526,7 +518,7 @@ internal static class BuiltInPresets
             IsBuiltIn = true,
             PresetRevision = 3,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1V-FXFOW8pj87DtqT4KpKSbu3AZYI4diSjH1F-FyNt_o/edit?gid=58668446#gid=58668446",
-            PresetStatus = "PF / Ikuya / NAUR mitigation assignments aligned to cactbot timestamps with automatic phase resynchronization.",
+            PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-derived one-shot phase anchoring.",
             Phases =
             [
                 new FightPhase { Name = "P1 Garuda", Key = "P1 Garuda", StartSeconds = 0 },
@@ -537,18 +529,12 @@ internal static class BuiltInPresets
             ],
             SyncTriggers =
             [
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 11091u, TimelineSeconds = 11, Name = "P1 Slipstream", RequiredPhase = "P1 Garuda", ResultPhase = "P1 Garuda", SuppressSeconds = 3 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 11103u, TimelineSeconds = 303, Name = "P2 Crimson Cyclone", RequiredPhase = "P1 Garuda", ResultPhase = "P2 Ifrit", SuppressSeconds = 3 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 11517u, TimelineSeconds = 603, Name = "P3 Geocrush", RequiredPhase = "P2 Ifrit", ResultPhase = "P3 Titan", SuppressSeconds = 3 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 11103u, TimelineSeconds = 300, Name = "P2 Crimson Cyclone", RequiredPhase = "P1 Garuda", ResultPhase = "P2 Ifrit", SuppressSeconds = 3 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 11517u, TimelineSeconds = 600, Name = "P3 Geocrush", RequiredPhase = "P2 Ifrit", ResultPhase = "P3 Titan", SuppressSeconds = 3 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 11509u, TimelineSeconds = 800, Name = "Intermission", RequiredPhase = "P3 Titan", ResultPhase = "Intermission", SuppressSeconds = 3 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 11143u, TimelineSeconds = 1004, Name = "P4 Tank Purge", RequiredPhase = "Intermission", ResultPhase = "P4 Ultima", SuppressSeconds = 3 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 11147u, TimelineSeconds = 955, Name = "P4 Ultima", RequiredPhase = "Intermission", ResultPhase = "P4 Ultima Weapon", SuppressSeconds = 3 },
             ],
-            StateTransitions =
-            [
-                new ActorStateTransition { RequiredPhase = "P1 Garuda", ResultPhase = "P2 Ifrit", TimelineSeconds = 300, Condition = ActorStateCondition.UntargetableAtOneHp, ActorDataIds = [8722u], Name = "Garuda reaches 1 HP and becomes untargetable" },
-                new ActorStateTransition { RequiredPhase = "P2 Ifrit", ResultPhase = "P3 Titan", TimelineSeconds = 600, Condition = ActorStateCondition.UntargetableAtOneHp, ActorDataIds = [8730u], Name = "Ifrit reaches 1 HP and becomes untargetable" },
-                new ActorStateTransition { RequiredPhase = "P3 Titan", ResultPhase = "Intermission", TimelineSeconds = 800, Condition = ActorStateCondition.UntargetableAtOneHp, ActorDataIds = [8727u], Name = "Titan reaches 1 HP and becomes untargetable" },
-            ],
+            StateTransitions = [],
             Timeline =
             [
                 Item(11, "Fairy Regen + then eat fairy", "Garuda: Mistral Song", "SCH", "Shield Healer"),
@@ -721,7 +707,7 @@ internal static class BuiltInPresets
             IsBuiltIn = true,
             PresetRevision = 3,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1A58RflNeNq9mesuvSEcQzIvQ3MwOGyvPRi5khNACrc8/edit?gid=1511755464#gid=1511755464",
-            PresetStatus = "PF / Ikuya / NAUR mitigation assignments aligned to cactbot timestamps with automatic phase resynchronization.",
+            PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-derived one-shot phase anchoring.",
             Phases =
             [
                 new FightPhase { Name = "P1 Living Liquid", Key = "P1 Living Liquid", StartSeconds = 0 },
@@ -731,17 +717,11 @@ internal static class BuiltInPresets
             ],
             SyncTriggers =
             [
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 18470u, TimelineSeconds = 20, Name = "P1 Cascade", RequiredPhase = "", ResultPhase = "P1 Living Liquid", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 18494u, TimelineSeconds = 238, Name = "P2 Judgment Nisi", RequiredPhase = "P1 Living Liquid", ResultPhase = "P2 BJCC", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 18543u, TimelineSeconds = 535, Name = "P3 Inception Formation", RequiredPhase = "P2 BJCC", ResultPhase = "P3 Alexander Prime", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 18555u, TimelineSeconds = 955, Name = "P4 Fate Projection Alpha", RequiredPhase = "P3 Alexander Prime", ResultPhase = "P4 Perfect Alexander", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 18480u, TimelineSeconds = 200, Name = "P2 Hawk Blaster transition", RequiredPhase = "P1 Living Liquid", ResultPhase = "P2 BJCC", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 18522u, TimelineSeconds = 492, Name = "P3 Temporal Stasis", RequiredPhase = "P2 BJCC", ResultPhase = "P3 Alexander Prime", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 19083u, TimelineSeconds = 900, Name = "P4 Perfect Alexander opening", RequiredPhase = "P3 Alexander Prime", ResultPhase = "P4 Perfect Alexander", SuppressSeconds = 0 },
             ],
-            StateTransitions =
-            [
-                new ActorStateTransition { RequiredPhase = "P1 Living Liquid", ResultPhase = "P2 BJCC", TimelineSeconds = 220, Condition = ActorStateCondition.DeadOrDestroyed, ActorDataIds = [11335u], Name = "Living Liquid is defeated" },
-                new ActorStateTransition { RequiredPhase = "P2 BJCC", ResultPhase = "P3 Alexander Prime", TimelineSeconds = 500, Condition = ActorStateCondition.AllUntargetableWithAnyBelowFullHp, ActorDataIds = [11340u, 11342u], Name = "Brute Justice and Cruise Chaser become untargetable after the HP check" },
-                new ActorStateTransition { RequiredPhase = "P3 Alexander Prime", ResultPhase = "P4 Perfect Alexander", TimelineSeconds = 900, Condition = ActorStateCondition.AtOneHpNotCasting, ActorDataIds = [11347u], Name = "Alexander Prime reaches 1 HP and finishes casting" },
-            ],
+            StateTransitions = [],
             Timeline =
             [
                 Item(0, "90s + Short + Reprisal", "LLBJCC: Fluid Swing", "Any Job", "MT"),
@@ -973,7 +953,7 @@ internal static class BuiltInPresets
             IsBuiltIn = true,
             PresetRevision = 5,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1YJX933Fe6MeNv06QVQfRUI3oJVfCvm4OqOyLCSjcAJk/edit?gid=1960553822#gid=1960553822",
-            PresetStatus = "PF / Ikuya / NAUR mitigation assignments aligned to BossMod Reborn phase-relative timings with automatic checkpoint and phase resynchronization.",
+            PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-derived one-shot phase and checkpoint anchoring.",
             Phases =
             [
                 new FightPhase { Name = "P1 Vault Knights", Key = "P1 Vault Knights", StartSeconds = 0 },
@@ -988,21 +968,14 @@ internal static class BuiltInPresets
             SyncTriggers =
             [
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 25544u, TimelineSeconds = 178, Name = "P2 Ascalon's Mercy Concealed", RequiredPhase = "", ResultPhase = "P2 Thordan", SuppressSeconds = 3 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 26376u, TimelineSeconds = 387, Name = "P3 Final Chorus", RequiredPhase = "P2 Thordan", ResultPhase = "P3 Nidhogg", SuppressSeconds = 3 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 25313u, TimelineSeconds = 620, Name = "Rewind Planar Prison", RequiredPhase = "P4 Eyes", ResultPhase = "Rewind", SuppressSeconds = 3 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 26376u, TimelineSeconds = 387, Name = "P3 Final Chorus", RequiredPhase = "P2 Thordan", ResultPhase = "P3 Nidhogg", SuppressSeconds = 3 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 29050u, TimelineSeconds = 535, Name = "P4 Eyes Resentment transition", RequiredPhase = "P3 Nidhogg", ResultPhase = "P4 Eyes", SuppressSeconds = 3 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 25314u, TimelineSeconds = 620, Name = "Rewind Spear of the Fury", RequiredPhase = "P4 Eyes", ResultPhase = "Rewind", SuppressSeconds = 3 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 27526u, TimelineSeconds = 715, Name = "P5 Incarnation", RequiredPhase = "Rewind", ResultPhase = "P5 Dark Thordan", SuppressSeconds = 3 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 26215u, TimelineSeconds = 970, Name = "P6 Surrender", RequiredPhase = "P5 Dark Thordan", ResultPhase = "P6 Double Dragons", SuppressSeconds = 3 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 26810u, TimelineSeconds = 1200, Name = "P7 Resentment", RequiredPhase = "P6 Double Dragons", ResultPhase = "P7 Dragon King", SuppressSeconds = 3 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 29156u, TimelineSeconds = 1217, Name = "P7 Shockwave", RequiredPhase = "P7 Dragon King", ResultPhase = "P7 Dragon King", SuppressSeconds = 3 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 26215u, TimelineSeconds = 970, Name = "P6 transition", RequiredPhase = "P5 Dark Thordan", ResultPhase = "P6 Double Dragons", SuppressSeconds = 3 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 29156u, TimelineSeconds = 1217, Name = "P7 Shockwave", RequiredPhase = "P6 Double Dragons", ResultPhase = "P7 Dragon King", SuppressSeconds = 3 },
             ],
-            StateTransitions =
-            [
-                new ActorStateTransition { RequiredPhase = "P1 Vault Knights", ResultPhase = "P2 Thordan", TimelineSeconds = 170, Condition = ActorStateCondition.Targetable, ActorDataIds = [12604u], Name = "King Thordan becomes targetable (including checkpoint pulls)" },
-                new ActorStateTransition { RequiredPhase = "P2 Thordan", ResultPhase = "P3 Nidhogg", TimelineSeconds = 380, Condition = ActorStateCondition.DeadOrDestroyed, ActorDataIds = [12604u], Name = "King Thordan is defeated" },
-                new ActorStateTransition { RequiredPhase = "P3 Nidhogg", ResultPhase = "P4 Eyes", TimelineSeconds = 520, Condition = ActorStateCondition.DeadOrDestroyed, ActorDataIds = [12605u], Name = "Nidhogg is defeated" },
-                new ActorStateTransition { RequiredPhase = "P4 Eyes", ResultPhase = "Rewind", TimelineSeconds = 620, Condition = ActorStateCondition.AllDeadOrDestroyed, ActorDataIds = [12609u, 12610u, 12615u], Name = "Both eyes and Nidhogg are defeated" },
-                new ActorStateTransition { RequiredPhase = "Rewind", ResultPhase = "P5 Dark Thordan", TimelineSeconds = 700, Condition = ActorStateCondition.DeadOrDestroyed, ActorDataIds = [11810u], Name = "Spear of the Fury is defeated" },
-            ],
+            StateTransitions = [],
             Timeline =
             [
                 Item(0, "Adelphel", "P1 Vault Knights: Pull", "Any Job", "MT"),
@@ -1212,19 +1185,20 @@ internal static class BuiltInPresets
             IsBuiltIn = true,
             PresetRevision = 3,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1G0q0PHNFAFbJqE2ftparUyAcqCY-Dw9Hlzh6PpjRCKc/edit?gid=223515716#gid=223515716",
-            PresetStatus = "PF / Ikuya / NAUR mitigation assignments aligned to cactbot timestamps with automatic phase resynchronization.",
+            PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-derived one-shot phase anchoring.",
             Phases =
             [
                 new FightPhase { Name = "P1 Omega", Key = "P1 Omega", StartSeconds = 0 },
                 new FightPhase { Name = "P2 M/F", Key = "P2 M/F", StartSeconds = 200 },
                 new FightPhase { Name = "P3 Reconfigured", Key = "P3 Reconfigured", StartSeconds = 400 },
                 new FightPhase { Name = "P4 Blue Screen", Key = "P4 Blue Screen", StartSeconds = 600 },
-                new FightPhase { Name = "P5 Dynamis", Key = "P5 Dynamis", StartSeconds = 700 },
+                new FightPhase { Name = "P5 Delta", Key = "P5 Delta", StartSeconds = 700 },
+                new FightPhase { Name = "P5 Sigma", Key = "P5 Sigma", StartSeconds = 819 },
+                new FightPhase { Name = "P5 Omega", Key = "P5 Omega", StartSeconds = 908 },
                 new FightPhase { Name = "P6 Alpha Omega", Key = "P6 Alpha Omega", StartSeconds = 1100 },
             ],
             SyncTriggers =
             [
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 31741u, TimelineSeconds = 0, Name = "P1 opening attack", RequiredPhase = "", ResultPhase = "P1 Omega", SuppressSeconds = 20 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 31552u, TimelineSeconds = 203, Name = "P2 Firewall", RequiredPhase = "P1 Omega", ResultPhase = "P2 M/F", SuppressSeconds = 20 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 31507u, TimelineSeconds = 400, Name = "P3 transition", RequiredPhase = "P2 M/F", ResultPhase = "P3 Reconfigured", SuppressSeconds = 20 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 31559u, TimelineSeconds = 600, Name = "P4 transition", RequiredPhase = "P3 Reconfigured", ResultPhase = "P4 Blue Screen", SuppressSeconds = 20 },
@@ -1233,12 +1207,7 @@ internal static class BuiltInPresets
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 32789u, TimelineSeconds = 908, Name = "P5 Omega", RequiredPhase = "P5 Sigma", ResultPhase = "P5 Omega", SuppressSeconds = 20 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 32626u, TimelineSeconds = 1100, Name = "P6 Blind Faith", RequiredPhase = "P5 Omega", ResultPhase = "P6 Alpha Omega", SuppressSeconds = 20 },
             ],
-            StateTransitions =
-            [
-                new ActorStateTransition { RequiredPhase = "P1 Omega", ResultPhase = "P2 M/F", TimelineSeconds = 200, Condition = ActorStateCondition.Untargetable, ActorDataIds = [15708u], Name = "Omega becomes untargetable" },
-                new ActorStateTransition { RequiredPhase = "P2 M/F", ResultPhase = "P3 Reconfigured", TimelineSeconds = 400, Condition = ActorStateCondition.AllUntargetableAtOneHp, ActorDataIds = [15712u, 15713u], Name = "Omega-M and Omega-F complete their HP checks" },
-                new ActorStateTransition { RequiredPhase = "P3 Reconfigured", ResultPhase = "P4 Blue Screen", TimelineSeconds = 600, Condition = ActorStateCondition.UntargetableAtOneHp, ActorDataIds = [15717u], Name = "Reconfigured Omega completes its HP check" },
-            ],
+            StateTransitions = [],
             Timeline =
             [
                 Item(15, "Buddy Mit Squishies", "Beetle: Looper", "Any Job", "MT"),
@@ -1593,30 +1562,23 @@ internal static class BuiltInPresets
             IsBuiltIn = true,
             PresetRevision = 4,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1M1LHe4mpb1lyxkLWJxrDwe_JH897nickG3XLTtwnI90/edit?gid=58668446#gid=58668446",
-            PresetStatus = "PF / Ikuya / NAUR mitigation assignments aligned to the encounter timeline with automatic phase resynchronization.",
+            PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-derived one-shot phase anchoring.",
             Phases =
             [
                 new FightPhase { Name = "P1 Fatebreaker", Key = "P1 Fatebreaker", StartSeconds = 0 },
                 new FightPhase { Name = "P2 Usurper of Frost", Key = "P2 Usurper of Frost", StartSeconds = 157 },
                 new FightPhase { Name = "P3 Oracle of Darkness", Key = "P3 Oracle of Darkness", StartSeconds = 410 },
-                new FightPhase { Name = "P4 Enter the Dragon", Key = "P4 Enter the Dragon", StartSeconds = 591 },
-                new FightPhase { Name = "P5 transition", Key = "P5 transition", StartSeconds = 767 },
-                new FightPhase { Name = "P5 Pandora targetable", Key = "P5 Pandora targetable", StartSeconds = 844 },
+                new FightPhase { Name = "P4 Enter the Dragon", Key = "P4 Enter the Dragon", StartSeconds = 584 },
+                new FightPhase { Name = "P5 Pandora", Key = "P5 Pandora", StartSeconds = 826 },
             ],
             SyncTriggers =
             [
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40144u, TimelineSeconds = 7, Name = "P1 Cyclonic Break", RequiredPhase = "", ResultPhase = "P1 Fatebreaker", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40148u, TimelineSeconds = 7, Name = "P1 Cyclonic Break", RequiredPhase = "", ResultPhase = "P1 Fatebreaker", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40191u, TimelineSeconds = 168, Name = "P2 Quadruple Slap", RequiredPhase = "P1 Fatebreaker", ResultPhase = "P2 Usurper of Frost", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40266u, TimelineSeconds = 445, Name = "P3 Ultimate Relativity", RequiredPhase = "P2 Usurper of Frost", ResultPhase = "P3 Oracle of Darkness", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40239u, TimelineSeconds = 620, Name = "P4 Darklit Dragonsong", RequiredPhase = "P3 Oracle of Darkness", ResultPhase = "P4 Enter the Dragon", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40306u, TimelineSeconds = 849, Name = "P5 Fulgent Blade", RequiredPhase = "", ResultPhase = "P5 Pandora", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40265u, TimelineSeconds = 410, Name = "P3 Hell's Judgment", RequiredPhase = "P2 Usurper of Frost", ResultPhase = "P3 Oracle of Darkness", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40246u, TimelineSeconds = 584, Name = "P4 Materialization", RequiredPhase = "P3 Oracle of Darkness", ResultPhase = "P4 Enter the Dragon", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40306u, TimelineSeconds = 826, Name = "P5 Fulgent Blade", RequiredPhase = "P4 Enter the Dragon", ResultPhase = "P5 Pandora", SuppressSeconds = 0 },
             ],
-            StateTransitions =
-            [
-                new ActorStateTransition { RequiredPhase = "P1 Fatebreaker", ResultPhase = "P2 Usurper of Frost", TimelineSeconds = 157, Condition = ActorStateCondition.DeadOrDestroyed, ActorDataIds = [17819u], Name = "Fatebreaker is defeated" },
-                new ActorStateTransition { RequiredPhase = "P2 Usurper of Frost", ResultPhase = "P3 Oracle of Darkness", TimelineSeconds = 410, Condition = ActorStateCondition.AnyDeadOrDestroyed, ActorDataIds = [17823u, 17829u], Name = "Usurper or Ice Veil phase completes" },
-            ],
+            StateTransitions = [],
             Timeline =
             [
                 Item(14, "Reprisal + Party Mit", "Fatebreaker: Cyclonic Break 1", "Any Job", "MT"),
@@ -1871,7 +1833,7 @@ internal static class BuiltInPresets
             [
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49740u, TimelineSeconds = 221, Name = "P2 Ultimate Embrace", RequiredPhase = "P1 Kefka", ResultPhase = "P2 Forsaken Kefka", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 50167u, TimelineSeconds = 382, Name = "P3 Aero III Assault", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49884u, TimelineSeconds = 763, Name = "P4 Kefka Says", RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "P4 Kefka Says", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49884u, TimelineSeconds = 744, Name = "P4 Kefka Says", RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "P4 Kefka Says", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 47936u, TimelineSeconds = 907, Name = "P5 Ultima Repeater", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0 },
             ],
             StateTransitions = [],

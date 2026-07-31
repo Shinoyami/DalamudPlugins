@@ -33,7 +33,7 @@
     "Author": "Shinoyami",
     "Name": "MitPlan",
     "InternalName": "MitPlan",
-    "AssemblyVersion": "1.2.0.14",
+    "AssemblyVersion": "1.2.0.15",
     "Description": "Displays editable job/role-specific mitigation reminders using default plans based on PF, Ikuya, and NAUR mitigation strategies where available.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -48,10 +48,10 @@
     "IsTestingExclusive": false,
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Shinoyami/DalamudPlugins",
-    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.14/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.14/latest.zip",
-    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.14/latest.zip",
-    "TestingAssemblyVersion": "1.2.0.14",
-    "Changelog": "Uses cactbot-style one-shot phase anchors for DMU, limits live reminders to the active phase, and adds a Personal Tank Mits callout toggle."
+    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.15/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.15/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.15/latest.zip",
+    "TestingAssemblyVersion": "1.2.0.15",
+    "Changelog": "Adds cactbot-derived one-shot phase anchors across all built-in encounters and corrects DMU P4 alert timing."
   }
 ]

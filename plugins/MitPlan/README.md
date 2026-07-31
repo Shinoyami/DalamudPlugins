@@ -9,7 +9,8 @@ based on PF / Ikuya / NAUR mitigation strategies where available.
 - Includes editable presets for supported Savage and Ultimate fights.
 - Uses PF / Ikuya / NAUR mitigation assignments where a public sheet is available.
 - Supports all requested combat jobs and MT, OT, healer, D1-D4 slots.
-- Automatically starts at combat entry and resynchronizes at fight phases.
+- Automatically starts at combat entry and uses cactbot-derived, one-shot opening anchors for each fight phase.
+- Keeps live mitigation reminders isolated to the active phase instead of continuously correcting the clock.
 - Configurable advance warning and alert persistence.
 - `/mitplan` opens the window; `/mitplan start|stop|reset` controls it.
 
