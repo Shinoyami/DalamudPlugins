@@ -46,6 +46,8 @@ public sealed class Configuration : IPluginConfiguration
             OverlayTextColor = [1f, 1f, 1f, 1f];
         if (OverlayGlowColor is not { Length: 4 })
             OverlayGlowColor = [1f, 0.72f, 0.08f, 1f];
+        LeadSeconds = Math.Clamp(LeadSeconds, 0, 60);
+        KeepSeconds = Math.Clamp(KeepSeconds, 0, 60);
         for (var index = 0; index < 4; index++)
         {
             OverlayTextColor[index] = Math.Clamp(OverlayTextColor[index], 0f, 1f);

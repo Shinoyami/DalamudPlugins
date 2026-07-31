@@ -58,6 +58,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly HashSet<(nint Address, uint StatusId)> activeStatuses = [];
     private readonly HashSet<uint> seenActorDataIds = [];
     private readonly HashSet<string> firedStateTransitions = [];
+    private PendingTimelineSync? pendingTimelineSync;
     private string currentPhase = string.Empty;
     private string lastSyncStatus = string.Empty;
 
@@ -148,6 +149,7 @@ public sealed class Plugin : IDalamudPlugin
             CheckTimelineSyncTriggers();
             CheckResolvedAbilities();
             CheckStatusTriggers();
+            ApplyPendingTimelineSync();
         }
         else
         {
@@ -159,6 +161,7 @@ public sealed class Plugin : IDalamudPlugin
             currentPhase = string.Empty;
             seenActorDataIds.Clear();
             firedStateTransitions.Clear();
+            pendingTimelineSync = null;
         }
         wasInCombat = inCombat;
     }
@@ -195,6 +198,7 @@ public sealed class Plugin : IDalamudPlugin
             };
             if (!matched)
                 continue;
+            pendingTimelineSync = null;
             StartTimer(transition.TimelineSeconds);
             currentPhase = transition.ResultPhase;
             firedStateTransitions.Add(key);
@@ -255,13 +259,42 @@ public sealed class Plugin : IDalamudPlugin
                 DateTime.UtcNow - last < TimeSpan.FromSeconds(trigger.SuppressSeconds))
                 continue;
 
-            StartTimer(trigger.TimelineSeconds);
             firedSyncTriggers.Add(key);
-            lastTriggerTimes[key] = DateTime.UtcNow;
+            var observedAt = DateTime.UtcNow;
+            lastTriggerTimes[key] = observedAt;
             if (!string.IsNullOrEmpty(trigger.ResultPhase))
                 currentPhase = trigger.ResultPhase;
-            lastSyncStatus = $"Auto-synced {currentPhase} at {FormatTime(trigger.TimelineSeconds)} from {trigger.Name} ({eventType} 0x{eventId:X}).";
+
+            var alertStartsAt = Math.Max(0, trigger.TimelineSeconds - configuration.LeadSeconds);
+            if (pullStartedAt is not null && ElapsedSeconds <= alertStartsAt)
+            {
+                pendingTimelineSync = new PendingTimelineSync(
+                    trigger.TimelineSeconds, observedAt, trigger.ResultPhase, trigger.Name, eventType, eventId);
+                lastSyncStatus = $"Sync queued after the {FormatTime(trigger.TimelineSeconds)} alert: {trigger.Name}.";
+            }
+            else
+                ApplyTimelineSync(trigger.TimelineSeconds, observedAt, trigger.ResultPhase, trigger.Name, eventType, eventId);
         }
+    }
+
+    private void ApplyPendingTimelineSync()
+    {
+        if (pendingTimelineSync is not { } pending || ElapsedSeconds < pending.TimelineSeconds)
+            return;
+
+        pendingTimelineSync = null;
+        ApplyTimelineSync(pending.TimelineSeconds, pending.ObservedAt, pending.ResultPhase,
+            pending.Name, pending.EventType, pending.EventId);
+    }
+
+    private void ApplyTimelineSync(int timelineSeconds, DateTime observedAt, string resultPhase,
+        string name, TimelineSyncEventType eventType, uint eventId)
+    {
+        var elapsedSinceObservation = Math.Max(0, (int)(DateTime.UtcNow - observedAt).TotalSeconds);
+        StartTimer(timelineSeconds + elapsedSinceObservation);
+        if (!string.IsNullOrEmpty(resultPhase))
+            currentPhase = resultPhase;
+        lastSyncStatus = $"Auto-synced {currentPhase} at {FormatTime(timelineSeconds)} from {name} ({eventType} 0x{eventId:X}).";
     }
 
     private void StartTimer(int elapsedSeconds)
@@ -675,6 +708,13 @@ public sealed class Plugin : IDalamudPlugin
         if (ImGui.InputInt("Show mitigation this many seconds early", ref lead))
         {
             configuration.LeadSeconds = Math.Clamp(lead, 0, 60);
+            Save();
+        }
+        var keep = configuration.KeepSeconds;
+        ImGui.SetNextItemWidth(100);
+        if (ImGui.InputInt("Keep mitigation on screen after its timing", ref keep))
+        {
+            configuration.KeepSeconds = Math.Clamp(keep, 0, 60);
             Save();
         }
         var displayModes = new[] { "Skill name", "Skill icon", "Name + icon" };
@@ -1151,6 +1191,14 @@ public sealed class Plugin : IDalamudPlugin
         if (role.Contains("D4")) return "D4";
         return role;
     }
+
+    private sealed record PendingTimelineSync(
+        int TimelineSeconds,
+        DateTime ObservedAt,
+        string ResultPhase,
+        string Name,
+        TimelineSyncEventType EventType,
+        uint EventId);
 
     private static string FormatTime(int totalSeconds) => $"{totalSeconds / 60}:{totalSeconds % 60:00}";
     private static string SingleLine(string text) => text.Replace("\r", string.Empty).Replace("\n", " → ");
