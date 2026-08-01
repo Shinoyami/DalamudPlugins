@@ -162,20 +162,17 @@ public sealed unsafe class Plugin : IDalamudPlugin
             if (!addon->AtkUnitBase.IsVisible)
                 return;
 
-            // AgentRevive is used by both prompts, and ResurrectingPlayerId can remain populated while
-            // the two-button return dialog is shown. The layouts are unambiguous and language-independent:
-            // player Raise has Accept / Wait / Decline, while return has OK / Wait.
-            var promptKind = HasVisibleThirdButton(addon)
-                ? RevivePromptKind.PlayerRaise
-                : RevivePromptKind.ReturnToStart;
+            var promptKind = ClassifyPrompt(addon, out var yesText, out var buttonCount);
             if (promptKind != currentPromptKind)
             {
                 currentPromptKind = promptKind;
                 handledCurrentPrompt = false;
                 playerRaiseDetectedAt = promptKind == RevivePromptKind.PlayerRaise ? DateTime.UtcNow : null;
+                log.Debug("Revive prompt classified as {PromptKind}; first button '{YesText}', {ButtonCount} button values, resurrecting player ID {PlayerId}.",
+                    promptKind, yesText, buttonCount, reviveAgent->ResurrectingPlayerId);
             }
 
-            if (handledCurrentPrompt)
+            if (promptKind == RevivePromptKind.None || handledCurrentPrompt)
                 return;
 
             if (promptKind == RevivePromptKind.PlayerRaise)
@@ -218,11 +215,31 @@ public sealed unsafe class Plugin : IDalamudPlugin
         addon->ReceiveEvent(clickEvent->State.EventType, (int)clickEvent->Param, clickEvent);
     }
 
-    private static bool HasVisibleThirdButton(AddonSelectYesno* addon)
+    private static RevivePromptKind ClassifyPrompt(AddonSelectYesno* addon, out string yesText, out int buttonCount)
     {
-        var thirdButton = addon->GetComponentButtonById(14);
-        return thirdButton != null && thirdButton->AtkComponentBase.OwnerNode != null &&
-               thirdButton->AtkComponentBase.OwnerNode->AtkResNode.IsVisible();
+        yesText = addon->YesButton == null || addon->YesButton->ButtonTextNode == null
+            ? string.Empty
+            : addon->YesButton->ButtonTextNode->NodeText.ToString().Trim();
+        buttonCount = 0;
+        if (addon->AtkUnitBase.AtkValues != null)
+            for (var index = 1; index <= 3 && index < addon->AtkUnitBase.AtkValuesCount; index++)
+                if (addon->AtkUnitBase.AtkValues[index].Type is AtkValueType.String or AtkValueType.ConstString or
+                    AtkValueType.ManagedString or AtkValueType.WideString)
+                    buttonCount++;
+
+        // Button text is the strongest signal and avoids stale hidden-node and AgentRevive state.
+        if (yesText.Equals("OK", StringComparison.OrdinalIgnoreCase))
+            return RevivePromptKind.ReturnToStart;
+        if (yesText.Equals("Accept", StringComparison.OrdinalIgnoreCase))
+            return RevivePromptKind.PlayerRaise;
+
+        // The value layout is language-independent: Raise has three choices; return has two.
+        return buttonCount switch
+        {
+            3 => RevivePromptKind.PlayerRaise,
+            2 => RevivePromptKind.ReturnToStart,
+            _ => RevivePromptKind.None,
+        };
     }
 
     private void ResetPromptState()
