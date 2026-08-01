@@ -3,7 +3,7 @@
     "Author": "Shinoyami",
     "Name": "Auto Raise Accept",
     "InternalName": "AutoRaiseAccept",
-    "AssemblyVersion": "1.0.0.5",
+    "AssemblyVersion": "1.0.0.6",
     "Description": "Automatically clicks Accept on FFXIV's incoming Raise dialog. Detection uses the game's active resurrection agent and does not depend on the raising player's name.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -23,11 +23,11 @@
     "IsTestingExclusive": false,
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Shinoyami/DalamudPlugins",
-    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/AutoRaiseAccept-v1.0.0.5/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/AutoRaiseAccept-v1.0.0.5/latest.zip",
-    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/AutoRaiseAccept-v1.0.0.5/latest.zip",
-    "TestingAssemblyVersion": "1.0.0.5",
-    "Changelog": "Classifies revive dialogs from their live button text and value layout, delaying OK return prompts while immediately accepting player Raise prompts. Unknown dialog layouts are left untouched."
+    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/AutoRaiseAccept-v1.0.0.6/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/AutoRaiseAccept-v1.0.0.6/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/AutoRaiseAccept-v1.0.0.6/latest.zip",
+    "TestingAssemblyVersion": "1.0.0.6",
+    "Changelog": "Reads the visible revive prompt text directly: player Raise prompts are accepted immediately, while return-to-start prompts wait for the configured death timeout."
   },
   {
     "Author": "Shinoyami",

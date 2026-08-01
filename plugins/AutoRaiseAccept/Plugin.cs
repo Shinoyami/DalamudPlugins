@@ -162,14 +162,14 @@ public sealed unsafe class Plugin : IDalamudPlugin
             if (!addon->AtkUnitBase.IsVisible)
                 return;
 
-            var promptKind = ClassifyPrompt(addon, out var yesText, out var buttonCount);
+            var promptKind = ClassifyPrompt(addon, out var promptText, out var yesText, out var buttonCount);
             if (promptKind != currentPromptKind)
             {
                 currentPromptKind = promptKind;
                 handledCurrentPrompt = false;
                 playerRaiseDetectedAt = promptKind == RevivePromptKind.PlayerRaise ? DateTime.UtcNow : null;
-                log.Debug("Revive prompt classified as {PromptKind}; first button '{YesText}', {ButtonCount} button values, resurrecting player ID {PlayerId}.",
-                    promptKind, yesText, buttonCount, reviveAgent->ResurrectingPlayerId);
+                log.Information("Revive prompt classified as {PromptKind}; prompt '{PromptText}', first button '{YesText}', {ButtonCount} button values, resurrecting player ID {PlayerId}.",
+                    promptKind, promptText, yesText, buttonCount, reviveAgent->ResurrectingPlayerId);
             }
 
             if (promptKind == RevivePromptKind.None || handledCurrentPrompt)
@@ -215,8 +215,12 @@ public sealed unsafe class Plugin : IDalamudPlugin
         addon->ReceiveEvent(clickEvent->State.EventType, (int)clickEvent->Param, clickEvent);
     }
 
-    private static RevivePromptKind ClassifyPrompt(AddonSelectYesno* addon, out string yesText, out int buttonCount)
+    private static RevivePromptKind ClassifyPrompt(AddonSelectYesno* addon, out string promptText,
+        out string yesText, out int buttonCount)
     {
+        promptText = addon->PromptText == null
+            ? string.Empty
+            : addon->PromptText->NodeText.ToString().Trim();
         yesText = addon->YesButton == null || addon->YesButton->ButtonTextNode == null
             ? string.Empty
             : addon->YesButton->ButtonTextNode->NodeText.ToString().Trim();
@@ -227,7 +231,13 @@ public sealed unsafe class Plugin : IDalamudPlugin
                     AtkValueType.ManagedString or AtkValueType.WideString)
                     buttonCount++;
 
-        // Button text is the strongest signal and avoids stale hidden-node and AgentRevive state.
+        // These are the visible prompts in the English client and do not depend on the raiser's name.
+        if (promptText.Contains("Return to the starting point", StringComparison.OrdinalIgnoreCase))
+            return RevivePromptKind.ReturnToStart;
+        if (promptText.Contains("Accept Raise from", StringComparison.OrdinalIgnoreCase))
+            return RevivePromptKind.PlayerRaise;
+
+        // Button text is the next strongest signal and avoids stale hidden-node and AgentRevive state.
         if (yesText.Equals("OK", StringComparison.OrdinalIgnoreCase))
             return RevivePromptKind.ReturnToStart;
         if (yesText.Equals("Accept", StringComparison.OrdinalIgnoreCase))
