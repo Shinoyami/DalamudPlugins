@@ -162,9 +162,10 @@ public sealed unsafe class Plugin : IDalamudPlugin
             if (!addon->AtkUnitBase.IsVisible)
                 return;
 
-            // AgentRevive is used by both player Raises and the duty return prompt.
-            // A non-zero resurrecting player ID identifies a Raise without depending on the caster's name.
-            var promptKind = reviveAgent->ResurrectingPlayerId != 0
+            // AgentRevive is used by both prompts, and ResurrectingPlayerId can remain populated while
+            // the two-button return dialog is shown. The layouts are unambiguous and language-independent:
+            // player Raise has Accept / Wait / Decline, while return has OK / Wait.
+            var promptKind = HasVisibleThirdButton(addon)
                 ? RevivePromptKind.PlayerRaise
                 : RevivePromptKind.ReturnToStart;
             if (promptKind != currentPromptKind)
@@ -215,6 +216,13 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         var clickEvent = (AtkEvent*)eventPointer;
         addon->ReceiveEvent(clickEvent->State.EventType, (int)clickEvent->Param, clickEvent);
+    }
+
+    private static bool HasVisibleThirdButton(AddonSelectYesno* addon)
+    {
+        var thirdButton = addon->GetComponentButtonById(14);
+        return thirdButton != null && thirdButton->AtkComponentBase.OwnerNode != null &&
+               thirdButton->AtkComponentBase.OwnerNode->AtkResNode.IsVisible();
     }
 
     private void ResetPromptState()
