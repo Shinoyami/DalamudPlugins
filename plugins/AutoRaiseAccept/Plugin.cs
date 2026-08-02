@@ -1,14 +1,15 @@
 using System;
+using System.Linq;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui.Dtr;
+using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Memory;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.UI;
-using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace AutoRaiseAccept;
@@ -16,6 +17,8 @@ namespace AutoRaiseAccept;
 public sealed unsafe class Plugin : IDalamudPlugin
 {
     private const string Command = "/ara";
+    private const string PlayerRaisePattern = "Accept Raise from";
+    private const string ReturnPattern = "Return to the starting point";
 
     private readonly IDalamudPluginInterface pluginInterface;
     private readonly IFramework framework;
@@ -30,12 +33,11 @@ public sealed unsafe class Plugin : IDalamudPlugin
     private readonly IDtrBarEntry dtrEntry;
 
     private DateTime? deadDetectedAt;
-    private DateTime? playerRaiseDetectedAt;
-    private RevivePromptKind currentPromptKind;
-    private bool handledCurrentPrompt;
-    private nint capturedPromptAddress;
-    private RevivePromptKind capturedPromptKind;
-    private string capturedPromptText = string.Empty;
+    private nint activeDialogAddress;
+    private string activeDialogText = string.Empty;
+    private ReviveDialogKind activeDialogKind;
+    private bool activeDialogHandled;
+    private bool playerRaiseSeenThisDeath;
     private bool settingsWindowOpen;
 
     public Plugin(
@@ -69,12 +71,12 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         commandManager.AddHandler(Command, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Open Auto Raise Accept settings, or use: on, off, status, delay <milliseconds>."
+            HelpMessage = "Open Auto Raise Accept settings, or use: on, off, status."
         });
         framework.Update += OnFrameworkUpdate;
-        addonLifecycle.RegisterListener(AddonEvent.PostSetup, "SelectYesno", OnSelectYesnoPostSetup);
-        addonLifecycle.RegisterListener(AddonEvent.PostRefresh, "SelectYesno", OnSelectYesnoPostSetup);
-        addonLifecycle.RegisterListener(AddonEvent.PreFinalize, "SelectYesno", OnSelectYesnoPreFinalize);
+        addonLifecycle.RegisterListener(AddonEvent.PostSetup, "SelectYesno", OnSelectYesnoChanged);
+        addonLifecycle.RegisterListener(AddonEvent.PostRefresh, "SelectYesno", OnSelectYesnoChanged);
+        addonLifecycle.RegisterListener(AddonEvent.PreFinalize, "SelectYesno", OnSelectYesnoFinalized);
         pluginInterface.UiBuilder.Draw += DrawSettings;
         pluginInterface.UiBuilder.OpenConfigUi += OpenSettings;
         pluginInterface.UiBuilder.OpenMainUi += OpenSettings;
@@ -83,9 +85,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
     public void Dispose()
     {
         framework.Update -= OnFrameworkUpdate;
-        addonLifecycle.UnregisterListener(AddonEvent.PostSetup, "SelectYesno", OnSelectYesnoPostSetup);
-        addonLifecycle.UnregisterListener(AddonEvent.PostRefresh, "SelectYesno", OnSelectYesnoPostSetup);
-        addonLifecycle.UnregisterListener(AddonEvent.PreFinalize, "SelectYesno", OnSelectYesnoPreFinalize);
+        addonLifecycle.UnregisterListener(AddonEvent.PostSetup, "SelectYesno", OnSelectYesnoChanged);
+        addonLifecycle.UnregisterListener(AddonEvent.PostRefresh, "SelectYesno", OnSelectYesnoChanged);
+        addonLifecycle.UnregisterListener(AddonEvent.PreFinalize, "SelectYesno", OnSelectYesnoFinalized);
         pluginInterface.UiBuilder.Draw -= DrawSettings;
         pluginInterface.UiBuilder.OpenConfigUi -= OpenSettings;
         pluginInterface.UiBuilder.OpenMainUi -= OpenSettings;
@@ -95,56 +97,27 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
     private void OnCommand(string command, string arguments)
     {
-        var parts = arguments.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 0 || parts[0].Equals("status", StringComparison.OrdinalIgnoreCase))
+        switch (arguments.Trim().ToLowerInvariant())
         {
-            if (parts.Length == 0)
+            case "":
                 settingsWindowOpen = true;
-            else
+                break;
+            case "on":
+                SetEnabled(true);
+                break;
+            case "off":
+                SetEnabled(false);
+                break;
+            case "status":
                 PrintStatus();
-            return;
+                break;
+            default:
+                chatGui.Print("[Auto Raise Accept] Usage: /ara [on|off|status]. Use /ara with no argument for settings.");
+                break;
         }
-
-        if (parts[0].Equals("on", StringComparison.OrdinalIgnoreCase))
-        {
-            configuration.Enabled = true;
-            Save();
-            UpdateDtrEntry();
-            chatGui.Print("[Auto Raise Accept] Enabled.");
-            return;
-        }
-
-        if (parts[0].Equals("off", StringComparison.OrdinalIgnoreCase))
-        {
-            configuration.Enabled = false;
-            ResetDeathState(true);
-            Save();
-            UpdateDtrEntry();
-            chatGui.Print("[Auto Raise Accept] Disabled.");
-            return;
-        }
-
-        if (parts[0].Equals("delay", StringComparison.OrdinalIgnoreCase) &&
-            parts.Length >= 2 && int.TryParse(parts[1], out var delay))
-        {
-            configuration.DelayMilliseconds = Math.Clamp(delay, 0, 10000);
-            Save();
-            chatGui.Print($"[Auto Raise Accept] Delay: {configuration.DelayMilliseconds} ms.");
-            return;
-        }
-
-        chatGui.Print("[Auto Raise Accept] Usage: /ara [on|off|status|delay <0-10000>]. Use /ara with no argument for settings.");
     }
 
-    private void PrintStatus()
-    {
-        var state = configuration.Enabled ? "enabled" : "disabled";
-        chatGui.Print($"[Auto Raise Accept] {state}; player Raise delay {configuration.DelayMilliseconds} ms; return delay {configuration.ReturnDelaySeconds} seconds.");
-    }
-
-    private void Save() => pluginInterface.SavePluginConfig(configuration);
-
-    private void OnFrameworkUpdate(IFramework framework)
+    private void OnFrameworkUpdate(IFramework frameworkService)
     {
         if (!configuration.Enabled)
             return;
@@ -158,185 +131,172 @@ public sealed unsafe class Plugin : IDalamudPlugin
             }
 
             deadDetectedAt ??= DateTime.UtcNow;
-            var reviveAgent = AgentRevive.Instance();
-            var revivePromptIsActive = reviveAgent != null &&
-                                      reviveAgent->Revive != null &&
-                                      reviveAgent->IsAddonShown();
+            RefreshOrDiscoverDialog();
+            if (activeDialogAddress == nint.Zero || activeDialogHandled)
+                return;
 
-            if (!revivePromptIsActive)
+            if (activeDialogKind == ReviveDialogKind.PlayerRaise)
             {
-                ResetPromptState();
+                playerRaiseSeenThisDeath = true;
+                if (ClickFirstButton(activeDialogAddress))
+                {
+                    activeDialogHandled = true;
+                    log.Information("Clicked Accept for incoming player Raise matched by '{Pattern}'.", PlayerRaisePattern);
+                }
                 return;
             }
 
-            var addonAddress = gameGui.GetAddonByName("SelectYesno");
-            if (addonAddress == nint.Zero)
+            if (activeDialogKind != ReviveDialogKind.ReturnToStart || playerRaiseSeenThisDeath ||
+                DateTime.UtcNow - deadDetectedAt.Value < TimeSpan.FromSeconds(configuration.ReturnDelaySeconds))
                 return;
 
-            var addon = (AddonSelectYesno*)addonAddress.Address;
-            if (!addon->AtkUnitBase.IsVisible)
-                return;
-
-            var promptKind = capturedPromptAddress == addonAddress && capturedPromptKind != RevivePromptKind.None
-                ? capturedPromptKind
-                : ClassifyPrompt(addon, out _, out _, out _);
-            if (promptKind != currentPromptKind)
+            if (ClickFirstButton(activeDialogAddress))
             {
-                currentPromptKind = promptKind;
-                handledCurrentPrompt = false;
-                playerRaiseDetectedAt = promptKind == RevivePromptKind.PlayerRaise ? DateTime.UtcNow : null;
-                log.Information("Acting on revive prompt classified as {PromptKind}; captured prompt '{PromptText}'.",
-                    promptKind, capturedPromptText);
+                activeDialogHandled = true;
+                log.Information("Clicked OK to return after {Seconds} seconds without a player Raise.",
+                    configuration.ReturnDelaySeconds);
             }
-
-            if (promptKind == RevivePromptKind.None || handledCurrentPrompt)
-                return;
-
-            if (promptKind == RevivePromptKind.PlayerRaise)
-            {
-                playerRaiseDetectedAt ??= DateTime.UtcNow;
-                if ((DateTime.UtcNow - playerRaiseDetectedAt.Value).TotalMilliseconds < configuration.DelayMilliseconds)
-                    return;
-            }
-            else if (DateTime.UtcNow - deadDetectedAt.Value < TimeSpan.FromSeconds(configuration.ReturnDelaySeconds))
-            {
-                return;
-            }
-
-            var acceptButton = addon->YesButton;
-            if (acceptButton == null || !acceptButton->IsEnabled ||
-                !acceptButton->AtkComponentBase.OwnerNode->AtkResNode.IsVisible())
-                return;
-
-            ClickButton(acceptButton, &addon->AtkUnitBase);
-            handledCurrentPrompt = true;
-            log.Information(promptKind == RevivePromptKind.PlayerRaise
-                ? "Accepted incoming player Raise."
-                : $"Accepted return to the starting point after {configuration.ReturnDelaySeconds} seconds without a player Raise.");
         }
         catch (Exception ex)
         {
-            log.Error(ex, "Failed to handle revive prompt.");
-            handledCurrentPrompt = true;
+            log.Error(ex, "Failed to process SelectYesno revive dialog.");
         }
     }
 
-    private static void ClickButton(AtkComponentButton* button, AtkUnitBase* addon)
+    private void OnSelectYesnoChanged(AddonEvent eventType, AddonArgs args)
     {
+        if (!configuration.Enabled)
+            return;
+        CaptureDialog(args.Addon.Address, eventType.ToString());
+    }
+
+    private void OnSelectYesnoFinalized(AddonEvent _, AddonArgs args)
+    {
+        if (args.Addon.Address == activeDialogAddress)
+            ClearDialog();
+    }
+
+    private void RefreshOrDiscoverDialog()
+    {
+        if (activeDialogAddress != nint.Zero)
+        {
+            CaptureDialog(activeDialogAddress, "framework refresh");
+            return;
+        }
+
+        var addon = gameGui.GetAddonByName("SelectYesno");
+        if (addon != nint.Zero)
+            CaptureDialog(addon.Address, "framework discovery");
+    }
+
+    private void CaptureDialog(nint address, string source)
+    {
+        var addon = (AddonSelectYesno*)address;
+        if (addon == null || !addon->AtkUnitBase.IsVisible)
+            return;
+
+        var text = ReadDialogText(&addon->AtkUnitBase);
+        var kind = MatchDialog(text);
+        if (kind == ReviveDialogKind.None)
+            return;
+
+        var changed = address != activeDialogAddress || kind != activeDialogKind || text != activeDialogText;
+        activeDialogAddress = address;
+        activeDialogText = text;
+        activeDialogKind = kind;
+        if (kind == ReviveDialogKind.PlayerRaise)
+            playerRaiseSeenThisDeath = true;
+        if (!changed)
+            return;
+
+        activeDialogHandled = false;
+        log.Information("Matched {Kind} SelectYesno from {Source}: '{Text}'.", kind, source, text);
+    }
+
+    // This is the same legacy SelectYesno prompt path used by YesAlready/ECommons.
+    private static string ReadDialogText(AtkUnitBase* addon)
+    {
+        if (addon == null || addon->AtkValues == null || addon->AtkValuesCount == 0 ||
+            addon->AtkValues[0].String.Value == null)
+            return string.Empty;
+
+        var seString = MemoryHelper.ReadSeStringNullTerminated((nint)addon->AtkValues[0].String.Value);
+        return string.Join(string.Empty, seString.Payloads.OfType<TextPayload>().Select(payload => payload.Text))
+            .Replace('\n', ' ').Trim();
+    }
+
+    private static ReviveDialogKind MatchDialog(string text)
+    {
+        if (ContainsIgnoringWhitespace(text, PlayerRaisePattern))
+            return ReviveDialogKind.PlayerRaise;
+        if (ContainsIgnoringWhitespace(text, ReturnPattern))
+            return ReviveDialogKind.ReturnToStart;
+        return ReviveDialogKind.None;
+    }
+
+    private static bool ContainsIgnoringWhitespace(string text, string pattern)
+    {
+        var normalizedText = string.Concat(text.Where(character => !char.IsWhiteSpace(character)));
+        var normalizedPattern = string.Concat(pattern.Where(character => !char.IsWhiteSpace(character)));
+        return normalizedText.Contains(normalizedPattern, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Equivalent to YesAlready's AddonMaster.SelectYesno.Yes(): click the first physical button.
+    private static bool ClickFirstButton(nint address)
+    {
+        var addon = (AddonSelectYesno*)address;
+        if (addon == null || !addon->AtkUnitBase.IsVisible || addon->YesButton == null)
+            return false;
+
+        var button = addon->YesButton;
+        if (!button->IsEnabled || !button->AtkResNode->IsVisible())
+            return false;
+
         var buttonNode = button->AtkComponentBase.OwnerNode;
+        if (buttonNode == null)
+            return false;
         var eventPointer = buttonNode->AtkResNode.AtkEventManager.Event;
         if (eventPointer == null)
-            return;
+            return false;
 
         var clickEvent = (AtkEvent*)eventPointer;
-        addon->ReceiveEvent(clickEvent->State.EventType, (int)clickEvent->Param, clickEvent);
+        addon->AtkUnitBase.ReceiveEvent(clickEvent->State.EventType, (int)clickEvent->Param, eventPointer);
+        return true;
     }
 
-    private void OnSelectYesnoPostSetup(AddonEvent eventType, AddonArgs args)
-    {
-        unsafe
-        {
-            var addon = (AtkUnitBase*)args.Addon.Address;
-            if (addon == null || addon->AtkValues == null || addon->AtkValuesCount == 0 ||
-                addon->AtkValues[0].String.Value == null)
-                return;
-
-            var promptText = MemoryHelper.ReadSeStringNullTerminated((nint)addon->AtkValues[0].String.Value)
-                .TextValue.Trim();
-            capturedPromptAddress = args.Addon.Address;
-            capturedPromptText = promptText;
-            capturedPromptKind = ClassifyPromptText(promptText);
-            log.Information("Captured SelectYesno at {EventType} as {PromptKind}: '{PromptText}'.",
-                eventType, capturedPromptKind, capturedPromptText);
-        }
-    }
-
-    private void OnSelectYesnoPreFinalize(AddonEvent _, AddonArgs args)
-    {
-        if (capturedPromptAddress != args.Addon.Address)
-            return;
-        ClearCapturedPrompt();
-        ResetPromptState();
-    }
-
-    private static RevivePromptKind ClassifyPromptText(string promptText)
-    {
-        if (promptText.Contains("Return to the starting point", StringComparison.OrdinalIgnoreCase))
-            return RevivePromptKind.ReturnToStart;
-        if (promptText.Contains("Accept Raise from", StringComparison.OrdinalIgnoreCase))
-            return RevivePromptKind.PlayerRaise;
-        return RevivePromptKind.None;
-    }
-
-    private static RevivePromptKind ClassifyPrompt(AddonSelectYesno* addon, out string promptText,
-        out string yesText, out int buttonCount)
-    {
-        promptText = addon->PromptText == null
-            ? string.Empty
-            : addon->PromptText->NodeText.ToString().Trim();
-        yesText = addon->YesButton == null || addon->YesButton->ButtonTextNode == null
-            ? string.Empty
-            : addon->YesButton->ButtonTextNode->NodeText.ToString().Trim();
-        buttonCount = 0;
-        if (addon->AtkUnitBase.AtkValues != null)
-            for (var index = 1; index <= 3 && index < addon->AtkUnitBase.AtkValuesCount; index++)
-                if (addon->AtkUnitBase.AtkValues[index].Type is AtkValueType.String or AtkValueType.ConstString or
-                    AtkValueType.ManagedString or AtkValueType.WideString)
-                    buttonCount++;
-
-        // These are the visible prompts in the English client and do not depend on the raiser's name.
-        var promptKind = ClassifyPromptText(promptText);
-        if (promptKind != RevivePromptKind.None)
-            return promptKind;
-
-        // Button text is the next strongest signal and avoids stale hidden-node and AgentRevive state.
-        if (yesText.Equals("OK", StringComparison.OrdinalIgnoreCase))
-            return RevivePromptKind.ReturnToStart;
-        if (yesText.Equals("Accept", StringComparison.OrdinalIgnoreCase))
-            return RevivePromptKind.PlayerRaise;
-
-        // The value layout is language-independent: Raise has three choices; return has two.
-        return buttonCount switch
-        {
-            3 => RevivePromptKind.PlayerRaise,
-            2 => RevivePromptKind.ReturnToStart,
-            _ => RevivePromptKind.None,
-        };
-    }
-
-    private void ResetPromptState()
-    {
-        playerRaiseDetectedAt = null;
-        currentPromptKind = RevivePromptKind.None;
-        handledCurrentPrompt = false;
-    }
-
-    private void ResetDeathState(bool clearCapturedPrompt = false)
+    private void ResetDeathState()
     {
         deadDetectedAt = null;
-        if (clearCapturedPrompt)
-            ClearCapturedPrompt();
-        ResetPromptState();
+        playerRaiseSeenThisDeath = false;
+        ClearDialog();
     }
 
-    private void ClearCapturedPrompt()
+    private void ClearDialog()
     {
-        capturedPromptAddress = nint.Zero;
-        capturedPromptKind = RevivePromptKind.None;
-        capturedPromptText = string.Empty;
+        activeDialogAddress = nint.Zero;
+        activeDialogText = string.Empty;
+        activeDialogKind = ReviveDialogKind.None;
+        activeDialogHandled = false;
     }
 
-    private void OpenSettings() => settingsWindowOpen = true;
-
-    private void ToggleEnabled()
+    private void SetEnabled(bool enabled)
     {
-        configuration.Enabled = !configuration.Enabled;
-        if (!configuration.Enabled)
-            ResetDeathState(true);
+        configuration.Enabled = enabled;
+        ResetDeathState();
         Save();
         UpdateDtrEntry();
-        chatGui.Print($"[Auto Raise Accept] {(configuration.Enabled ? "Enabled" : "Disabled")}.");
+        chatGui.Print($"[Auto Raise Accept] {(enabled ? "Enabled" : "Disabled")}.");
     }
+
+    private void ToggleEnabled() => SetEnabled(!configuration.Enabled);
+
+    private void PrintStatus()
+    {
+        var state = configuration.Enabled ? "enabled" : "disabled";
+        chatGui.Print($"[Auto Raise Accept] {state}; return delay {configuration.ReturnDelaySeconds} seconds.");
+    }
+
+    private void Save() => pluginInterface.SavePluginConfig(configuration);
 
     private void UpdateDtrEntry()
     {
@@ -345,12 +305,14 @@ public sealed unsafe class Plugin : IDalamudPlugin
         dtrEntry.Shown = configuration.ShowDtrBar;
     }
 
+    private void OpenSettings() => settingsWindowOpen = true;
+
     private void DrawSettings()
     {
         if (!settingsWindowOpen)
             return;
 
-        ImGui.SetNextWindowSize(new System.Numerics.Vector2(430, 210), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowSize(new System.Numerics.Vector2(430, 180), ImGuiCond.FirstUseEver);
         if (!ImGui.Begin("Auto Raise Accept settings", ref settingsWindowOpen))
         {
             ImGui.End();
@@ -359,13 +321,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
         var enabled = configuration.Enabled;
         if (ImGui.Checkbox("Enable Auto Raise Accept", ref enabled))
-        {
-            configuration.Enabled = enabled;
-            if (!enabled)
-                ResetDeathState(true);
-            Save();
-            UpdateDtrEntry();
-        }
+            SetEnabled(enabled);
 
         var showDtrBar = configuration.ShowDtrBar;
         if (ImGui.Checkbox("Show DTR bar On/Off toggle", ref showDtrBar))
@@ -383,19 +339,10 @@ public sealed unsafe class Plugin : IDalamudPlugin
             Save();
         }
         ImGui.TextDisabled($"Current return wait: {configuration.ReturnDelaySeconds / 60}:{configuration.ReturnDelaySeconds % 60:00}");
-
-        var raiseDelay = configuration.DelayMilliseconds;
-        ImGui.SetNextItemWidth(120);
-        if (ImGui.InputInt("Player Raise click delay (milliseconds)", ref raiseDelay))
-        {
-            configuration.DelayMilliseconds = Math.Clamp(raiseDelay, 0, 10000);
-            Save();
-        }
-
         ImGui.End();
     }
 
-    private enum RevivePromptKind
+    private enum ReviveDialogKind
     {
         None,
         PlayerRaise,
