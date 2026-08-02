@@ -1,7 +1,10 @@
 using System;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.Addon.Lifecycle;
+using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui.Dtr;
+using Dalamud.Memory;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.UI;
@@ -16,6 +19,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
     private readonly IDalamudPluginInterface pluginInterface;
     private readonly IFramework framework;
+    private readonly IAddonLifecycle addonLifecycle;
     private readonly IObjectTable objectTable;
     private readonly IDtrBar dtrBar;
     private readonly IGameGui gameGui;
@@ -29,11 +33,15 @@ public sealed unsafe class Plugin : IDalamudPlugin
     private DateTime? playerRaiseDetectedAt;
     private RevivePromptKind currentPromptKind;
     private bool handledCurrentPrompt;
+    private nint capturedPromptAddress;
+    private RevivePromptKind capturedPromptKind;
+    private string capturedPromptText = string.Empty;
     private bool settingsWindowOpen;
 
     public Plugin(
         IDalamudPluginInterface pluginInterface,
         IFramework framework,
+        IAddonLifecycle addonLifecycle,
         IObjectTable objectTable,
         IDtrBar dtrBar,
         IGameGui gameGui,
@@ -43,6 +51,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
     {
         this.pluginInterface = pluginInterface;
         this.framework = framework;
+        this.addonLifecycle = addonLifecycle;
         this.objectTable = objectTable;
         this.dtrBar = dtrBar;
         this.gameGui = gameGui;
@@ -63,6 +72,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
             HelpMessage = "Open Auto Raise Accept settings, or use: on, off, status, delay <milliseconds>."
         });
         framework.Update += OnFrameworkUpdate;
+        addonLifecycle.RegisterListener(AddonEvent.PostSetup, "SelectYesno", OnSelectYesnoPostSetup);
+        addonLifecycle.RegisterListener(AddonEvent.PostRefresh, "SelectYesno", OnSelectYesnoPostSetup);
+        addonLifecycle.RegisterListener(AddonEvent.PreFinalize, "SelectYesno", OnSelectYesnoPreFinalize);
         pluginInterface.UiBuilder.Draw += DrawSettings;
         pluginInterface.UiBuilder.OpenConfigUi += OpenSettings;
         pluginInterface.UiBuilder.OpenMainUi += OpenSettings;
@@ -71,6 +83,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
     public void Dispose()
     {
         framework.Update -= OnFrameworkUpdate;
+        addonLifecycle.UnregisterListener(AddonEvent.PostSetup, "SelectYesno", OnSelectYesnoPostSetup);
+        addonLifecycle.UnregisterListener(AddonEvent.PostRefresh, "SelectYesno", OnSelectYesnoPostSetup);
+        addonLifecycle.UnregisterListener(AddonEvent.PreFinalize, "SelectYesno", OnSelectYesnoPreFinalize);
         pluginInterface.UiBuilder.Draw -= DrawSettings;
         pluginInterface.UiBuilder.OpenConfigUi -= OpenSettings;
         pluginInterface.UiBuilder.OpenMainUi -= OpenSettings;
@@ -102,7 +117,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         if (parts[0].Equals("off", StringComparison.OrdinalIgnoreCase))
         {
             configuration.Enabled = false;
-            ResetDeathState();
+            ResetDeathState(true);
             Save();
             UpdateDtrEntry();
             chatGui.Print("[Auto Raise Accept] Disabled.");
@@ -129,7 +144,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
 
     private void Save() => pluginInterface.SavePluginConfig(configuration);
 
-    private void OnFrameworkUpdate(IFramework _)
+    private void OnFrameworkUpdate(IFramework framework)
     {
         if (!configuration.Enabled)
             return;
@@ -162,14 +177,16 @@ public sealed unsafe class Plugin : IDalamudPlugin
             if (!addon->AtkUnitBase.IsVisible)
                 return;
 
-            var promptKind = ClassifyPrompt(addon, out var promptText, out var yesText, out var buttonCount);
+            var promptKind = capturedPromptAddress == addonAddress && capturedPromptKind != RevivePromptKind.None
+                ? capturedPromptKind
+                : ClassifyPrompt(addon, out _, out _, out _);
             if (promptKind != currentPromptKind)
             {
                 currentPromptKind = promptKind;
                 handledCurrentPrompt = false;
                 playerRaiseDetectedAt = promptKind == RevivePromptKind.PlayerRaise ? DateTime.UtcNow : null;
-                log.Information("Revive prompt classified as {PromptKind}; prompt '{PromptText}', first button '{YesText}', {ButtonCount} button values, resurrecting player ID {PlayerId}.",
-                    promptKind, promptText, yesText, buttonCount, reviveAgent->ResurrectingPlayerId);
+                log.Information("Acting on revive prompt classified as {PromptKind}; captured prompt '{PromptText}'.",
+                    promptKind, capturedPromptText);
             }
 
             if (promptKind == RevivePromptKind.None || handledCurrentPrompt)
@@ -215,6 +232,42 @@ public sealed unsafe class Plugin : IDalamudPlugin
         addon->ReceiveEvent(clickEvent->State.EventType, (int)clickEvent->Param, clickEvent);
     }
 
+    private void OnSelectYesnoPostSetup(AddonEvent eventType, AddonArgs args)
+    {
+        unsafe
+        {
+            var addon = (AtkUnitBase*)args.Addon.Address;
+            if (addon == null || addon->AtkValues == null || addon->AtkValuesCount == 0 ||
+                addon->AtkValues[0].String.Value == null)
+                return;
+
+            var promptText = MemoryHelper.ReadSeStringNullTerminated((nint)addon->AtkValues[0].String.Value)
+                .TextValue.Trim();
+            capturedPromptAddress = args.Addon.Address;
+            capturedPromptText = promptText;
+            capturedPromptKind = ClassifyPromptText(promptText);
+            log.Information("Captured SelectYesno at {EventType} as {PromptKind}: '{PromptText}'.",
+                eventType, capturedPromptKind, capturedPromptText);
+        }
+    }
+
+    private void OnSelectYesnoPreFinalize(AddonEvent _, AddonArgs args)
+    {
+        if (capturedPromptAddress != args.Addon.Address)
+            return;
+        ClearCapturedPrompt();
+        ResetPromptState();
+    }
+
+    private static RevivePromptKind ClassifyPromptText(string promptText)
+    {
+        if (promptText.Contains("Return to the starting point", StringComparison.OrdinalIgnoreCase))
+            return RevivePromptKind.ReturnToStart;
+        if (promptText.Contains("Accept Raise from", StringComparison.OrdinalIgnoreCase))
+            return RevivePromptKind.PlayerRaise;
+        return RevivePromptKind.None;
+    }
+
     private static RevivePromptKind ClassifyPrompt(AddonSelectYesno* addon, out string promptText,
         out string yesText, out int buttonCount)
     {
@@ -232,10 +285,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
                     buttonCount++;
 
         // These are the visible prompts in the English client and do not depend on the raiser's name.
-        if (promptText.Contains("Return to the starting point", StringComparison.OrdinalIgnoreCase))
-            return RevivePromptKind.ReturnToStart;
-        if (promptText.Contains("Accept Raise from", StringComparison.OrdinalIgnoreCase))
-            return RevivePromptKind.PlayerRaise;
+        var promptKind = ClassifyPromptText(promptText);
+        if (promptKind != RevivePromptKind.None)
+            return promptKind;
 
         // Button text is the next strongest signal and avoids stale hidden-node and AgentRevive state.
         if (yesText.Equals("OK", StringComparison.OrdinalIgnoreCase))
@@ -259,10 +311,19 @@ public sealed unsafe class Plugin : IDalamudPlugin
         handledCurrentPrompt = false;
     }
 
-    private void ResetDeathState()
+    private void ResetDeathState(bool clearCapturedPrompt = false)
     {
         deadDetectedAt = null;
+        if (clearCapturedPrompt)
+            ClearCapturedPrompt();
         ResetPromptState();
+    }
+
+    private void ClearCapturedPrompt()
+    {
+        capturedPromptAddress = nint.Zero;
+        capturedPromptKind = RevivePromptKind.None;
+        capturedPromptText = string.Empty;
     }
 
     private void OpenSettings() => settingsWindowOpen = true;
@@ -271,7 +332,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
     {
         configuration.Enabled = !configuration.Enabled;
         if (!configuration.Enabled)
-            ResetDeathState();
+            ResetDeathState(true);
         Save();
         UpdateDtrEntry();
         chatGui.Print($"[Auto Raise Accept] {(configuration.Enabled ? "Enabled" : "Disabled")}.");
@@ -301,7 +362,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         {
             configuration.Enabled = enabled;
             if (!enabled)
-                ResetDeathState();
+                ResetDeathState(true);
             Save();
             UpdateDtrEntry();
         }
