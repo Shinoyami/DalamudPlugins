@@ -33,6 +33,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
     private readonly IDtrBarEntry dtrEntry;
 
     private DateTime? deadDetectedAt;
+    private DateTime? playerRaiseDetectedAt;
     private nint activeDialogAddress;
     private string activeDialogText = string.Empty;
     private ReviveDialogKind activeDialogKind;
@@ -138,10 +139,18 @@ public sealed unsafe class Plugin : IDalamudPlugin
             if (activeDialogKind == ReviveDialogKind.PlayerRaise)
             {
                 playerRaiseSeenThisDeath = true;
+                playerRaiseDetectedAt ??= DateTime.UtcNow;
+                if (DateTime.UtcNow - playerRaiseDetectedAt.Value <
+                    TimeSpan.FromMilliseconds(configuration.RaiseAcceptDelayMilliseconds))
+                    return;
+
                 if (ClickFirstButton(activeDialogAddress))
                 {
                     activeDialogHandled = true;
-                    log.Information("Clicked Accept for incoming player Raise matched by '{Pattern}'.", PlayerRaisePattern);
+                    log.Information(
+                        "Clicked Accept for incoming player Raise matched by '{Pattern}' after {DelayMilliseconds} ms.",
+                        PlayerRaisePattern,
+                        configuration.RaiseAcceptDelayMilliseconds);
                 }
                 return;
             }
@@ -210,6 +219,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
             return;
 
         activeDialogHandled = false;
+        playerRaiseDetectedAt = kind == ReviveDialogKind.PlayerRaise ? DateTime.UtcNow : null;
         log.Information("Matched {Kind} SelectYesno from {Source}: '{Text}'.", kind, source, text);
     }
 
@@ -277,6 +287,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         activeDialogText = string.Empty;
         activeDialogKind = ReviveDialogKind.None;
         activeDialogHandled = false;
+        playerRaiseDetectedAt = null;
     }
 
     private void SetEnabled(bool enabled)
@@ -293,7 +304,9 @@ public sealed unsafe class Plugin : IDalamudPlugin
     private void PrintStatus()
     {
         var state = configuration.Enabled ? "enabled" : "disabled";
-        chatGui.Print($"[Auto Raise Accept] {state}; return delay {configuration.ReturnDelaySeconds} seconds.");
+        chatGui.Print(
+            $"[Auto Raise Accept] {state}; raise accept delay {configuration.RaiseAcceptDelayMilliseconds} ms; " +
+            $"return delay {configuration.ReturnDelaySeconds} seconds.");
     }
 
     private void Save() => pluginInterface.SavePluginConfig(configuration);
@@ -312,7 +325,7 @@ public sealed unsafe class Plugin : IDalamudPlugin
         if (!settingsWindowOpen)
             return;
 
-        ImGui.SetNextWindowSize(new System.Numerics.Vector2(430, 180), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowSize(new System.Numerics.Vector2(460, 220), ImGuiCond.FirstUseEver);
         if (!ImGui.Begin("Auto Raise Accept settings", ref settingsWindowOpen))
         {
             ImGui.End();
@@ -330,6 +343,15 @@ public sealed unsafe class Plugin : IDalamudPlugin
             Save();
             UpdateDtrEntry();
         }
+
+        var raiseAcceptDelay = configuration.RaiseAcceptDelayMilliseconds;
+        ImGui.SetNextItemWidth(120);
+        if (ImGui.InputInt("Player Raise accept delay (milliseconds)", ref raiseAcceptDelay))
+        {
+            configuration.RaiseAcceptDelayMilliseconds = Math.Clamp(raiseAcceptDelay, 0, 60000);
+            Save();
+        }
+        ImGui.TextDisabled("0 ms accepts the player Raise immediately.");
 
         var returnDelay = configuration.ReturnDelaySeconds;
         ImGui.SetNextItemWidth(120);
