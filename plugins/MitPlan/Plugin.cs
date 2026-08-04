@@ -770,16 +770,19 @@ public sealed class Plugin : IDalamudPlugin
             ImGui.TableSetupColumn("Delete", ImGuiTableColumnFlags.WidthFixed, 58);
             ImGui.TableHeadersRow();
 
-            var orderedItems = ApplicableTimeline()
-                .Where(item => personalOnly is null ||
-                    (personalOnly.Value
-                        ? IsTankPersonalMit(item)
-                        : ResolveSkills(item.Skill).Any(skill => !IsResolvedTankPersonalSkill(skill))))
+            var orderedItems = ApplicableSkillAlerts()
+                .Where(alert => personalOnly is null ||
+                    IsResolvedTankPersonalSkill(alert.Skill) == personalOnly.Value)
+                .GroupBy(alert => alert.Item.Id)
+                .Select(group => new TimelineDisplayRow(group.First().Item,
+                    group.Select(alert => alert.Skill).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()))
+                .OrderBy(row => row.Item.TimeSeconds)
                 .ToList();
             var phases = fight.Phases.OrderBy(phase => phase.StartSeconds).ToList();
             var nextPhase = 0;
-            foreach (var item in orderedItems)
+            foreach (var row in orderedItems)
             {
+                var item = row.Item;
                 while (nextPhase < phases.Count && phases[nextPhase].StartSeconds <= item.TimeSeconds)
                 {
                     DrawPhaseDivider(phases[nextPhase]);
@@ -789,7 +792,7 @@ public sealed class Plugin : IDalamudPlugin
                 ImGui.TableNextColumn(); ImGui.Text(item.TimeSeconds < 0 ? "Untimed" : FormatTime(item.TimeSeconds));
                 ImGui.TableNextColumn(); ImGui.Text(item.TargetJob == "Any Job" ? "Any" : item.TargetJob);
                 ImGui.TableNextColumn(); ImGui.Text(item.TargetRole == "Any Role" ? "Any" : ShortRole(item.TargetRole));
-                ImGui.TableNextColumn(); ImGui.TextWrapped(ResolveInstruction(item.Skill, personalOnly));
+                ImGui.TableNextColumn(); ImGui.TextWrapped(string.Join(" + ", row.Skills));
                 ImGui.TableNextColumn(); ImGui.TextWrapped(item.Note);
                 ImGui.TableNextColumn();
                 if (ImGui.SmallButton($"Edit##{item.Id}"))
@@ -887,9 +890,10 @@ public sealed class Plugin : IDalamudPlugin
             configuration.OverlayGlowColor = ColorToConfig(glowColor);
             Save();
         }
+        ImGui.TextDisabled("Known mitigation skills use their individual effect-duration timing.");
         var lead = configuration.LeadSeconds;
         ImGui.SetNextItemWidth(100);
-        if (ImGui.InputInt("Show mitigation this many seconds early", ref lead))
+        if (ImGui.InputInt("Fallback warning for uncatalogued skills (seconds)", ref lead))
         {
             configuration.LeadSeconds = Math.Clamp(lead, 0, 60);
             Save();
@@ -986,17 +990,18 @@ public sealed class Plugin : IDalamudPlugin
     private void DrawOverlay()
     {
         var elapsed = ElapsedSeconds;
-        var active = ApplicableTimeline(activePhaseOnly: true)
-            .Where(item => configuration.EnablePersonalTankMitAlerts || !IsTankPersonalMit(item))
-            .Where(item => item.TimeSeconds - elapsed <= configuration.LeadSeconds &&
-                           item.TimeSeconds - elapsed >= -configuration.KeepSeconds)
+        var active = ApplicableSkillAlerts(activePhaseOnly: true)
+            .Where(alert => configuration.EnablePersonalTankMitAlerts || !IsResolvedTankPersonalSkill(alert.Skill))
+            .Where(alert => alert.Item.TimeSeconds - elapsed <=
+                            MitigationTimings.LeadSeconds(alert.Skill, configuration.LeadSeconds) &&
+                            alert.Item.TimeSeconds - elapsed >= -configuration.KeepSeconds)
             .Take(5)
             .ToList();
         if (configuration.TestOverlay)
             active =
             [
-                new TimelineItem { Id = "test-reprisal", Skill = "Reprisal" },
-                new TimelineItem { Id = "test-party-mit", Skill = "Shake It Off" },
+                new SkillAlert(new TimelineItem { Id = "test-reprisal", Skill = "Reprisal" }, "Reprisal"),
+                new SkillAlert(new TimelineItem { Id = "test-party-mit", Skill = "Shake It Off" }, "Shake It Off"),
             ];
         if (active.Count == 0)
             return;
@@ -1010,9 +1015,7 @@ public sealed class Plugin : IDalamudPlugin
                  ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoTitleBar))
         {
             ImGui.PushStyleVar(ImGuiStyleVar.Alpha, configuration.OverlayOpacity);
-            foreach (var skill in active
-                         .SelectMany(item => ResolveSkills(item.Skill))
-                         .Distinct(StringComparer.OrdinalIgnoreCase))
+            foreach (var skill in active.Select(alert => alert.Skill).Distinct(StringComparer.OrdinalIgnoreCase))
                 DrawSkillAlert(skill);
             ImGui.PopStyleVar();
         }
@@ -1045,17 +1048,18 @@ public sealed class Plugin : IDalamudPlugin
             ImGui.TextDisabled("?");
     }
 
-    private void TriggerAlertAudio(IEnumerable<TimelineItem> active)
+    private void TriggerAlertAudio(IEnumerable<SkillAlert> active)
     {
         if (!configuration.EnableAudioAlert)
             return;
 
-        var newItems = active.Where(item => playedAudioAlerts.Add($"{SelectedFight.Id}:{item.Id}:{item.TimeSeconds}")).ToList();
-        if (newItems.Count == 0)
+        var newAlerts = active.Where(alert => playedAudioAlerts.Add(
+            $"{SelectedFight.Id}:{alert.Item.Id}:{alert.Item.TimeSeconds}:{alert.Skill}")).ToList();
+        if (newAlerts.Count == 0)
             return;
 
-        var skills = newItems
-            .SelectMany(item => ResolveSkills(item.Skill))
+        var skills = newAlerts
+            .Select(alert => alert.Skill)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
         PlayConfiguredAudio(skills);
@@ -1099,6 +1103,9 @@ public sealed class Plugin : IDalamudPlugin
                 Marshal.FinalReleaseComObject(voice);
         }
     }
+
+    private sealed record SkillAlert(TimelineItem Item, string Skill);
+    private sealed record TimelineDisplayRow(TimelineItem Item, IReadOnlyList<string> Skills);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -1180,13 +1187,9 @@ public sealed class Plugin : IDalamudPlugin
         var actions = dataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>();
         if (IsLimitBreakInstruction(lookup))
         {
-            var limitBreakActionId = dataManager.GetExcelSheet<Lumina.Excel.Sheets.GeneralAction>()
-                .Where(row => row.RowId == 3u)
-                .Select(row => row.Action.RowId)
-                .FirstOrDefault();
-            iconId = actions
-                .Where(row => row.RowId == limitBreakActionId)
-                .Select(row => row.Icon)
+            iconId = dataManager.GetExcelSheet<Lumina.Excel.Sheets.GeneralAction>()
+                .Where(row => row.Name.ToString().Equals("Limit Break", StringComparison.OrdinalIgnoreCase))
+                .Select(row => (uint)Math.Max(0, row.Icon))
                 .FirstOrDefault();
             if (iconId != 0)
                 return true;
@@ -1212,7 +1215,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private static bool IsLimitBreakInstruction(string value) =>
         value.Contains("Limit Break", StringComparison.OrdinalIgnoreCase) ||
-        System.Text.RegularExpressions.Regex.IsMatch(value, @"\bLB\s*3\b",
+        System.Text.RegularExpressions.Regex.IsMatch(value, @"\bLB(?:\s*[123])?\b",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     private static IEnumerable<string> SplitSkills(string value) => value
@@ -1270,6 +1273,8 @@ public sealed class Plugin : IDalamudPlugin
     private IEnumerable<string> ResolveSkillNames(string instruction)
     {
         var cleaned = instruction.Trim();
+        if (ContainsAny(cleaned, "Zoe Shields", "Zoe Shield", "ZoeEProg", "Zoe Eukrasian Prognosis"))
+            return ["Zoe", "Eukrasian Prognosis"];
         if (cleaned.Contains("Kitchen Sink", StringComparison.OrdinalIgnoreCase))
             return ["Rampart", TankNinetySecondCooldown(), TankMajorCooldown(), TankShortCooldown()];
         if (ContainsAny(cleaned, "90s", "90 sec", "90-second", "thrill", "bulwark", "dark mind", "camouflage", "camo"))
@@ -1355,25 +1360,6 @@ public sealed class Plugin : IDalamudPlugin
         _ => "Buddy Mit",
     };
 
-    private string ResolveInstruction(string instruction) => string.Join(" + ",
-        ResolveSkills(instruction)
-            .Distinct(StringComparer.OrdinalIgnoreCase));
-
-    private string ResolveInstruction(string instruction, bool? personalOnly)
-    {
-        var skills = ResolveSkills(instruction);
-        if (personalOnly is not null)
-            skills = skills.Where(skill => IsResolvedTankPersonalSkill(skill) == personalOnly.Value);
-        return string.Join(" + ", skills.Distinct(StringComparer.OrdinalIgnoreCase));
-    }
-
-    private bool IsTankPersonalMit(TimelineItem item)
-    {
-        if (item.TargetRole is not ("MT" or "OT"))
-            return false;
-        return ResolveSkills(item.Skill).Any(IsResolvedTankPersonalSkill);
-    }
-
     private bool IsResolvedTankPersonalSkill(string skill) => ContainsAny(skill,
         "Rampart", TankNinetySecondCooldown(), TankMajorCooldown(), TankShortCooldown(), TankInvulnerability(),
         TankBuddyCooldown(), "Nascent Flash", "Oblation", "Intervention", "Equilibrium", "Aurora");
@@ -1389,7 +1375,7 @@ public sealed class Plugin : IDalamudPlugin
                 (item.TargetCoTankJob == "Any Tank" || item.TargetCoTankJob == configuration.SelectedCoTankJob) &&
                 ResolveSkills(item.Skill).Any())
             .OrderBy(item => item.TimeSeconds);
-        return CollapseRepeatedSequences(applicable);
+        return applicable;
     }
 
     private string TimelinePhase(TimelineItem item)
@@ -1411,21 +1397,37 @@ public sealed class Plugin : IDalamudPlugin
             .FirstOrDefault()?.Key ?? SelectedFight.Phases.FirstOrDefault()?.Key ?? string.Empty;
     }
 
-    private IEnumerable<TimelineItem> CollapseRepeatedSequences(IEnumerable<TimelineItem> items)
-    {
-        var lastDisplayed = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        foreach (var item in items)
-        {
-            var signature = string.Join("|", ResolveSkills(item.Skill)
+    private IEnumerable<SkillAlert> ApplicableSkillAlerts(bool activePhaseOnly = false) =>
+        CollapseRepeatedSkillAlerts(ApplicableTimeline(activePhaseOnly)
+            .SelectMany(item => ResolveSkills(item.Skill)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(skill => skill, StringComparer.OrdinalIgnoreCase));
-            if (lastDisplayed.TryGetValue(signature, out var displayedTime) &&
-                item.TimeSeconds - displayedTime <= DuplicateSequenceWindowSeconds)
-                continue;
+                .Select(skill => new SkillAlert(item, skill))));
 
-            lastDisplayed[signature] = item.TimeSeconds;
-            yield return item;
+    private IEnumerable<SkillAlert> CollapseRepeatedSkillAlerts(IEnumerable<SkillAlert> alerts)
+    {
+        string Signature(SkillAlert alert) => $"{TimelinePhase(alert.Item)}|{alert.Skill}";
+
+        var retained = new List<SkillAlert>();
+        foreach (var group in alerts
+                     .OrderBy(alert => alert.Item.TimeSeconds)
+                     .GroupBy(Signature, StringComparer.OrdinalIgnoreCase))
+        {
+            SkillAlert? lastInCluster = null;
+            foreach (var alert in group)
+            {
+                if (lastInCluster is not null &&
+                    alert.Item.TimeSeconds - lastInCluster.Item.TimeSeconds > DuplicateSequenceWindowSeconds)
+                    retained.Add(lastInCluster);
+
+                lastInCluster = alert;
+            }
+
+            if (lastInCluster is not null)
+                retained.Add(lastInCluster);
         }
+
+        foreach (var alert in retained.OrderBy(alert => alert.Item.TimeSeconds))
+            yield return alert;
     }
 
     private static string DefaultRoleForJob(string job) => job switch

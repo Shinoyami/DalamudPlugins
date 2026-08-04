@@ -11,7 +11,9 @@ based on PF / Ikuya / NAUR mitigation strategies where available.
 - Supports all requested combat jobs and MT, OT, healer, D1-D4 slots.
 - Automatically starts at combat entry and uses cactbot-derived, one-shot opening anchors for each fight phase.
 - Keeps live mitigation reminders isolated to the active phase instead of continuously correcting the clock.
-- Configurable advance warning and alert persistence.
+- Collapses repeated mitigation rows within 15 seconds to the final occurrence in that sequence.
+- Uses individual effect-duration warning times for catalogued mitigation skills, with a configurable fallback for custom text.
+- Configurable alert persistence.
 - Entering a configured Savage or Ultimate automatically selects that fight and opens the encounter setup popup.
 - `/mitplan` opens the main window; `/mitplan p` opens player setup; `/mitplan start|stop|reset` controls the timer.
 
