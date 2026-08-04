@@ -12,6 +12,7 @@ based on PF / Ikuya / NAUR mitigation strategies where available.
 - Automatically starts at combat entry and uses cactbot-derived, one-shot opening anchors for each fight phase.
 - Keeps live mitigation reminders isolated to the active phase instead of continuously correcting the clock.
 - Configurable advance warning and alert persistence.
-- `/mitplan` opens the window; `/mitplan start|stop|reset` controls it.
+- Entering a configured Savage or Ultimate automatically selects that fight and opens the encounter setup popup.
+- `/mitplan` opens the main window; `/mitplan p` opens player setup; `/mitplan start|stop|reset` controls the timer.
 
 Timelines and assignments remain open to manual editing inside the plugin.

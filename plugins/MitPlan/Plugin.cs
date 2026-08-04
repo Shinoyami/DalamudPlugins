@@ -51,6 +51,9 @@ public sealed class Plugin : IDalamudPlugin
     private DateTime? pullStartedAt;
     private bool wasInCombat;
     private bool mainWindowOpen = true;
+    private bool encounterSetupPopupRequested;
+    private uint lastContentFinderConditionId;
+    private string encounterSetupFightId = string.Empty;
     private string newFightName = string.Empty;
     private string newFightCategory = "Custom";
     private string entryTime = string.Empty;
@@ -101,7 +104,7 @@ public sealed class Plugin : IDalamudPlugin
 
         commandManager.AddHandler(Command, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Open MitPlan. Arguments: start, stop, reset."
+            HelpMessage = "Open MitPlan. Arguments: p (player setup), start, stop, reset."
         });
         framework.Update += OnFrameworkUpdate;
         pluginInterface.UiBuilder.Draw += Draw;
@@ -172,6 +175,9 @@ public sealed class Plugin : IDalamudPlugin
     {
         switch (arguments.Trim().ToLowerInvariant())
         {
+            case "p":
+                RequestEncounterSetupPopup();
+                break;
             case "start":
             case "reset":
                 StartTimer(0);
@@ -187,6 +193,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnFrameworkUpdate(IFramework _)
     {
+        CheckForEncounterEntry();
         var inCombat = condition[ConditionFlag.InCombat];
         if (configuration.AutoStartWithCombat && inCombat && !wasInCombat)
         {
@@ -392,6 +399,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         if (mainWindowOpen)
             DrawMainWindow();
+        DrawEncounterSetupPopup();
         if (configuration.ShowOverlay && (configuration.TestOverlay ||
             pullStartedAt is not null && condition[ConditionFlag.InCombat] && IsSelectedFightActive()))
             DrawOverlay();
@@ -411,31 +419,7 @@ public sealed class Plugin : IDalamudPlugin
         DrawFightSelector();
 
         DrawSectionHeader("Player");
-        var selectedJob = configuration.SelectedJob;
-        var selectedRole = configuration.SelectedRole;
-        var jobChanged = DrawCombo("Job", Jobs, ref selectedJob);
-        var availableRoles = RolesForJob(selectedJob);
-        var healerRoleAdjusted = jobChanged && selectedJob is "WHM" or "AST" or "SCH" or "SGE";
-        var roleAdjusted = healerRoleAdjusted || !availableRoles.Contains(selectedRole);
-        if (roleAdjusted)
-            selectedRole = DefaultRoleForJob(selectedJob);
-        var roleChanged = DrawCombo("Role / slot", availableRoles, ref selectedRole);
-        var coTankChanged = false;
-        if (TankJobs.Contains(selectedJob))
-        {
-            var selectedCoTankJob = configuration.SelectedCoTankJob;
-            var availableCoTanks = TankJobs.Where(job => job != selectedJob).ToArray();
-            if (!availableCoTanks.Contains(selectedCoTankJob))
-                selectedCoTankJob = availableCoTanks[0];
-            coTankChanged = DrawCombo("Co-tank job", availableCoTanks, ref selectedCoTankJob);
-            configuration.SelectedCoTankJob = selectedCoTankJob;
-        }
-        if (jobChanged || roleChanged || roleAdjusted || coTankChanged)
-        {
-            configuration.SelectedJob = selectedJob;
-            configuration.SelectedRole = selectedRole;
-            Save();
-        }
+        DrawPlayerSelectors(false);
 
         DrawSectionHeader("Add or edit timeline reminder");
         DrawEntryEditor();
@@ -464,6 +448,125 @@ public sealed class Plugin : IDalamudPlugin
         DrawSectionHeader("Timer and overlay");
         DrawTimerControls();
         ImGui.End();
+    }
+
+    private void DrawPlayerSelectors(bool showCoTankRole)
+    {
+        var selectedJob = configuration.SelectedJob;
+        var selectedRole = configuration.SelectedRole;
+        var jobChanged = DrawCombo("Job", Jobs, ref selectedJob);
+        var availableRoles = RolesForJob(selectedJob);
+        var healerRoleAdjusted = jobChanged && selectedJob is "WHM" or "AST" or "SCH" or "SGE";
+        var roleAdjusted = healerRoleAdjusted || !availableRoles.Contains(selectedRole);
+        if (roleAdjusted)
+            selectedRole = DefaultRoleForJob(selectedJob);
+        var roleChanged = DrawCombo("Role / slot", availableRoles, ref selectedRole);
+        var coTankChanged = false;
+        if (TankJobs.Contains(selectedJob))
+        {
+            var selectedCoTankJob = configuration.SelectedCoTankJob;
+            var availableCoTanks = TankJobs.Where(job => job != selectedJob).ToArray();
+            if (!availableCoTanks.Contains(selectedCoTankJob))
+                selectedCoTankJob = availableCoTanks[0];
+            coTankChanged = DrawCombo("Co-tank job", availableCoTanks, ref selectedCoTankJob);
+            configuration.SelectedCoTankJob = selectedCoTankJob;
+
+            if (showCoTankRole)
+            {
+                var selectedCoTankRole = selectedRole == "MT" ? "OT" : "MT";
+                if (DrawCombo("Co-tank role", ["MT", "OT"], ref selectedCoTankRole))
+                {
+                    selectedRole = selectedCoTankRole == "MT" ? "OT" : "MT";
+                    roleChanged = true;
+                }
+                ImGui.TextDisabled("Your role and the co-tank role are always kept opposite.");
+            }
+        }
+        if (jobChanged || roleChanged || roleAdjusted || coTankChanged)
+        {
+            configuration.SelectedJob = selectedJob;
+            configuration.SelectedRole = selectedRole;
+            Save();
+        }
+    }
+
+    private void CheckForEncounterEntry()
+    {
+        var contentFinderConditionId = CurrentContentFinderConditionId();
+        if (contentFinderConditionId == lastContentFinderConditionId)
+            return;
+
+        lastContentFinderConditionId = contentFinderConditionId;
+        if (contentFinderConditionId == 0)
+            return;
+
+        var fight = FindSupportedFight(contentFinderConditionId);
+        if (fight is null)
+            return;
+
+        SelectEncounterFight(fight);
+        encounterSetupPopupRequested = true;
+    }
+
+    private void RequestEncounterSetupPopup()
+    {
+        var currentFight = FindSupportedFight(CurrentContentFinderConditionId());
+        if (currentFight is not null)
+            SelectEncounterFight(currentFight);
+        else
+            encounterSetupFightId = configuration.SelectedFightId;
+
+        encounterSetupPopupRequested = true;
+    }
+
+    private void SelectEncounterFight(FightPlan fight)
+    {
+        if (configuration.SelectedFightId != fight.Id)
+        {
+            CancelEdit();
+            pullStartedAt = null;
+            currentPhase = string.Empty;
+        }
+
+        configuration.SelectedFightId = fight.Id;
+        encounterSetupFightId = fight.Id;
+        Save();
+    }
+
+    private FightPlan? FindSupportedFight(uint contentFinderConditionId)
+    {
+        if (contentFinderConditionId == 0)
+            return null;
+
+        var matches = configuration.Fights.Where(fight =>
+            fight.ContentFinderConditionId == contentFinderConditionId &&
+            fight.Category is "Savage" or "Ultimate").ToList();
+        return matches.FirstOrDefault(fight => fight.Id == configuration.SelectedFightId) ??
+               matches.FirstOrDefault(fight => fight.IsBuiltIn) ??
+               matches.FirstOrDefault();
+    }
+
+    private void DrawEncounterSetupPopup()
+    {
+        const string popupName = "MitPlan encounter setup##EncounterSetup";
+        if (encounterSetupPopupRequested)
+        {
+            ImGui.OpenPopup(popupName);
+            encounterSetupPopupRequested = false;
+        }
+
+        if (!ImGui.BeginPopupModal(popupName, ImGuiWindowFlags.AlwaysAutoResize))
+            return;
+
+        var fight = configuration.Fights.FirstOrDefault(item => item.Id == encounterSetupFightId) ?? SelectedFight;
+        ImGui.TextUnformatted(fight.Name);
+        ImGui.TextDisabled("Choose the job and party slot MitPlan should use for this encounter.");
+        ImGui.Separator();
+        DrawPlayerSelectors(true);
+        ImGui.Spacing();
+        if (ImGui.Button("Confirm and close", new Vector2(160, 0)))
+            ImGui.CloseCurrentPopup();
+        ImGui.EndPopup();
     }
 
     private void DrawFightSelector()
@@ -1369,6 +1472,12 @@ public sealed class Plugin : IDalamudPlugin
             return true;
         var gameMain = GameMain.Instance();
         return gameMain != null && gameMain->CurrentContentFinderConditionId == SelectedFight.ContentFinderConditionId;
+    }
+
+    private static unsafe uint CurrentContentFinderConditionId()
+    {
+        var gameMain = GameMain.Instance();
+        return gameMain == null ? 0u : gameMain->CurrentContentFinderConditionId;
     }
 
     private static bool DrawCombo(string label, IReadOnlyList<string> values, ref string selected)
