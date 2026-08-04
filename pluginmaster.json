@@ -33,7 +33,7 @@
     "Author": "Shinoyami",
     "Name": "MitPlan",
     "InternalName": "MitPlan",
-    "AssemblyVersion": "1.2.0.21",
+    "AssemblyVersion": "1.2.0.22",
     "Description": "Displays editable job/role-specific mitigation reminders using default plans based on PF, Ikuya, and NAUR mitigation strategies where available.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -48,11 +48,11 @@
     "IsTestingExclusive": false,
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Shinoyami/DalamudPlugins",
-    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.21/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.21/latest.zip",
-    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.21/latest.zip",
-    "TestingAssemblyVersion": "1.2.0.21",
-    "Changelog": "Adds individual mitigation-skill warning times, keeps only the final repeated use of each skill within 15 seconds, fixes the Limit Break icon, and changes the uncatalogued-skill fallback to 2 seconds."
+    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.22/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.22/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.22/latest.zip",
+    "TestingAssemblyVersion": "1.2.0.22",
+    "Changelog": "Adjusts Raw Intuition, Sheltron, and Heart of Stone alerts to 4 seconds before timing, and Haima and Panhaima alerts to 22 seconds before timing."
   },
   {
     "Author": "Shinoyami",
