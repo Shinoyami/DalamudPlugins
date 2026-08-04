@@ -51,7 +51,7 @@ public sealed class Plugin : IDalamudPlugin
     private DateTime? pullStartedAt;
     private bool wasInCombat;
     private bool mainWindowOpen = true;
-    private bool encounterSetupPopupRequested;
+    private bool encounterSetupWindowOpen;
     private uint lastContentFinderConditionId;
     private string encounterSetupFightId = string.Empty;
     private string newFightName = string.Empty;
@@ -399,7 +399,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         if (mainWindowOpen)
             DrawMainWindow();
-        DrawEncounterSetupPopup();
+        DrawEncounterSetupWindow();
         if (configuration.ShowOverlay && (configuration.TestOverlay ||
             pullStartedAt is not null && condition[ConditionFlag.InCombat] && IsSelectedFightActive()))
             DrawOverlay();
@@ -419,7 +419,7 @@ public sealed class Plugin : IDalamudPlugin
         DrawFightSelector();
 
         DrawSectionHeader("Player");
-        DrawPlayerSelectors(false);
+        DrawPlayerSelectors();
 
         DrawSectionHeader("Add or edit timeline reminder");
         DrawEntryEditor();
@@ -450,7 +450,7 @@ public sealed class Plugin : IDalamudPlugin
         ImGui.End();
     }
 
-    private void DrawPlayerSelectors(bool showCoTankRole)
+    private void DrawPlayerSelectors()
     {
         var selectedJob = configuration.SelectedJob;
         var selectedRole = configuration.SelectedRole;
@@ -470,17 +470,7 @@ public sealed class Plugin : IDalamudPlugin
                 selectedCoTankJob = availableCoTanks[0];
             coTankChanged = DrawCombo("Co-tank job", availableCoTanks, ref selectedCoTankJob);
             configuration.SelectedCoTankJob = selectedCoTankJob;
-
-            if (showCoTankRole)
-            {
-                var selectedCoTankRole = selectedRole == "MT" ? "OT" : "MT";
-                if (DrawCombo("Co-tank role", ["MT", "OT"], ref selectedCoTankRole))
-                {
-                    selectedRole = selectedCoTankRole == "MT" ? "OT" : "MT";
-                    roleChanged = true;
-                }
-                ImGui.TextDisabled("Your role and the co-tank role are always kept opposite.");
-            }
+            ImGui.TextDisabled($"Co-tank role: {(selectedRole == "MT" ? "OT" : "MT")} (automatic)");
         }
         if (jobChanged || roleChanged || roleAdjusted || coTankChanged)
         {
@@ -505,7 +495,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
 
         SelectEncounterFight(fight);
-        encounterSetupPopupRequested = true;
+        encounterSetupWindowOpen = true;
     }
 
     private void RequestEncounterSetupPopup()
@@ -516,7 +506,7 @@ public sealed class Plugin : IDalamudPlugin
         else
             encounterSetupFightId = configuration.SelectedFightId;
 
-        encounterSetupPopupRequested = true;
+        encounterSetupWindowOpen = true;
     }
 
     private void SelectEncounterFight(FightPlan fight)
@@ -546,27 +536,28 @@ public sealed class Plugin : IDalamudPlugin
                matches.FirstOrDefault();
     }
 
-    private void DrawEncounterSetupPopup()
+    private void DrawEncounterSetupWindow()
     {
-        const string popupName = "MitPlan encounter setup##EncounterSetup";
-        if (encounterSetupPopupRequested)
-        {
-            ImGui.OpenPopup(popupName);
-            encounterSetupPopupRequested = false;
-        }
-
-        if (!ImGui.BeginPopupModal(popupName, ImGuiWindowFlags.AlwaysAutoResize))
+        if (!encounterSetupWindowOpen)
             return;
+
+        ImGui.SetNextWindowSize(new Vector2(430, 240), ImGuiCond.FirstUseEver);
+        if (!ImGui.Begin("MitPlan encounter setup##EncounterSetup", ref encounterSetupWindowOpen,
+                ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            ImGui.End();
+            return;
+        }
 
         var fight = configuration.Fights.FirstOrDefault(item => item.Id == encounterSetupFightId) ?? SelectedFight;
         ImGui.TextUnformatted(fight.Name);
         ImGui.TextDisabled("Choose the job and party slot MitPlan should use for this encounter.");
         ImGui.Separator();
-        DrawPlayerSelectors(true);
+        DrawPlayerSelectors();
         ImGui.Spacing();
         if (ImGui.Button("Confirm and close", new Vector2(160, 0)))
-            ImGui.CloseCurrentPopup();
-        ImGui.EndPopup();
+            encounterSetupWindowOpen = false;
+        ImGui.End();
     }
 
     private void DrawFightSelector()
