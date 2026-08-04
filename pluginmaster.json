@@ -78,5 +78,31 @@
     "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlanRecorder-v0.1.0.0/latest.zip",
     "TestingAssemblyVersion": "0.1.0.0",
     "Changelog": "Initial release with automatic encounter recording, editable phases and cast anchors, CSV mitigation matching, and direct export to MitPlan."
+  },
+  {
+    "Author": "attick, daemitus, Khayle, Shinoyami",
+    "Name": "XIV Combo Expanded (Alt)",
+    "InternalName": "XIVComboExpanded",
+    "AssemblyVersion": "2.0.6.1",
+    "Description": "Alternative XIV Combo Expanded build with a Sage option that replaces Dosis with Phlegma during detected raid burst windows and safely spends a second charge outside the final 20 seconds before the next tracked burst.",
+    "ApplicableVersion": "any",
+    "DalamudApiLevel": 15,
+    "TestingDalamudApiLevel": 15,
+    "Punchline": "XIV Combo Expanded with alternate Sage burst handling.",
+    "Tags": ["combo", "xivcombo", "expanded", "sage", "phlegma"],
+    "CategoryTags": ["jobs"],
+    "LoadRequiredState": 0,
+    "LoadSync": false,
+    "CanUnloadAsync": false,
+    "LoadPriority": 0,
+    "IsTestingExclusive": false,
+    "AcceptsFeedback": true,
+    "RepoUrl": "https://github.com/Shinoyami/XIVComboExpanded",
+    "IconUrl": "https://raw.githubusercontent.com/Shinoyami/XIVComboExpanded/master/res/icon.png",
+    "DownloadLinkInstall": "https://github.com/Shinoyami/XIVComboExpanded/releases/download/sage-burst-781c60d/XIVComboExpanded-SageBurst-PR533-781c60d.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/XIVComboExpanded/releases/download/sage-burst-781c60d/XIVComboExpanded-SageBurst-PR533-781c60d.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/XIVComboExpanded/releases/download/sage-burst-781c60d/XIVComboExpanded-SageBurst-PR533-781c60d.zip",
+    "TestingAssemblyVersion": "2.0.6.1",
+    "Changelog": "Adds Sage Dosis-to-Phlegma burst handling with raid-buff detection, a first-burst fallback, a 6-yalm range check, and two-charge pooling for the next tracked burst."
   }
 ]
