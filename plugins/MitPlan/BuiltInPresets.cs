@@ -1824,7 +1824,7 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 1094u,
             IsBuiltIn = true,
-            PresetRevision = 7,
+            PresetRevision = 8,
             SourceUrl = "https://docs.google.com/spreadsheets/d/10C3ytfH3irHqkb45rchIq5oqdAs-v_OKTj57M-Twi3k/edit?usp=sharing",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-style one-shot phase anchoring.",
             Phases =
@@ -1838,9 +1838,8 @@ internal static class BuiltInPresets
             SyncTriggers =
             [
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49740u, TimelineSeconds = 215, Name = "P2 Ultimate Embrace", RequiredPhase = "P1 Kefka", ResultPhase = "P2 Forsaken Kefka", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 50167u, TimelineSeconds = 384, Name = "P3 Aero III Assault transition", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0, PhaseOnly = true },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 49890u, TimelineSeconds = 428.5f, Name = "P3 first The Decisive Battle (Chaos)", RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "", SuppressSeconds = 0, AllowNonCastSync = true },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 49891u, TimelineSeconds = 428.5f, Name = "P3 first The Decisive Battle (Exdeath)", RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "", SuppressSeconds = 0, AllowNonCastSync = true },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49890u, TimelineSeconds = 425.5f, Name = "P3 first The Decisive Battle (Chaos)", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49891u, TimelineSeconds = 425.5f, Name = "P3 first The Decisive Battle (Exdeath)", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49884u, TimelineSeconds = 745, Name = "P4 Kefka Says", RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "P4 Kefka Says", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 50173u, TimelineSeconds = 867, Name = "P5 Kefka transition", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0, PhaseOnly = true },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 47936u, TimelineSeconds = 906, Name = "P5 Ultima Repeater", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0 },

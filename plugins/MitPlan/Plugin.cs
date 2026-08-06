@@ -442,9 +442,8 @@ public sealed class Plugin : IDalamudPlugin
                 continue;
 
             // Phase-only and non-cast transition signals may tell us which phase
-            // is active without correcting its clock. A small number of explicitly
-            // configured phase anchors (such as DMU P3's first Decisive Battle)
-            // resolve as abilities rather than cast starts and opt in separately.
+            // is active without correcting its clock. Imported custom plans can
+            // explicitly opt an ability into clock synchronization when necessary.
             var canSyncClock = eventType == TimelineSyncEventType.CastStart || trigger.AllowNonCastSync ||
                                !string.IsNullOrEmpty(trigger.ResultPhase);
             if (trigger.PhaseOnly || !canSyncClock)
