@@ -2479,6 +2479,7 @@ internal static class BuiltInPresets
         configuration.Fights.RemoveAll(fight => fight.IsBuiltIn && (fight.Id == "m12s-p1" || fight.Id == "m12s-p2"));
         foreach (var preset in CreateAll())
         {
+            preset.EncounterTimeline = CactbotEncounterTimelines.For(preset.Id).ToList();
             var existing = configuration.Fights.FirstOrDefault(fight => fight.Id == preset.Id);
             if (existing is null)
                 configuration.Fights.Add(preset);
@@ -2492,6 +2493,7 @@ internal static class BuiltInPresets
                 existing.Phases = preset.Phases;
                 existing.SyncTriggers = preset.SyncTriggers;
                 existing.StateTransitions = preset.StateTransitions;
+                existing.EncounterTimeline = preset.EncounterTimeline;
                 if (existing.Timeline.Count == 0 || existing.PresetRevision < preset.PresetRevision)
                     existing.Timeline = preset.Timeline;
                 existing.PresetRevision = preset.PresetRevision;

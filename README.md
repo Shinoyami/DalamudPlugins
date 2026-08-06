@@ -23,14 +23,15 @@ Commands: `/ara`, `/ara on`, `/ara off`, and `/ara delay <milliseconds>`.
 ### MitPlan
 
 Displays editable fight timelines, filters assignments by selected job and party
-slot, and shows advance mitigation warnings. Default mitigation plans are based
+slot, shows advance mitigation warnings, and optionally displays the encounter's
+full cactbot-style mechanic timeline. Default mitigation plans are based
 on PF / Ikuya / NAUR mitigation strategies where available. Use `/mitplan` to configure it.
 
 ### MitPlan Recorder
 
 Records enemy casts and abilities into an editable encounter timeline, supports
 phase-specific cast anchors and CSV mitigation imports, and sends reviewed plans
-directly to MitPlan. Use `/mitrec` to open it.
+directly to MitPlan with the recorded encounter timeline included. Use `/mitrec` to open it.
 
 ## Disclaimer
 

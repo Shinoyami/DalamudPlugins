@@ -699,7 +699,8 @@ public sealed class Plugin : IDalamudPlugin
         var phaseAnchors = recording.Phases.Count(phase => phase.AnchorEventId is not null);
         var mechanicAnchors = recording.Events.Count(item => item.UseAsSyncAnchor &&
             recording.Phases.All(phase => phase.AnchorEventId != item.Id));
-        ImGui.TextWrapped($"The exported plan contains {recording.Phases.Count} phases, {phaseAnchors} phase anchors, {mechanicAnchors} one-shot mechanic anchors, and mitigation reminders on {assignedEvents} recorded mechanics. Empty mitigation rows stay in Recorder and do not create alerts in MitPlan.");
+        var timelineEvents = recording.Events.Count(item => item.Included);
+        ImGui.TextWrapped($"The exported plan contains {recording.Phases.Count} phases, {timelineEvents} encounter-timeline entries, {phaseAnchors} phase anchors, {mechanicAnchors} one-shot mechanic anchors, and mitigation reminders on {assignedEvents} recorded mechanics. Empty mitigation rows stay in the encounter timeline but do not create mitigation alerts in MitPlan.");
         if (ImGui.Button("Copy MitPlan JSON to clipboard"))
         {
             ImGui.SetClipboardText(MitPlanExporter.BuildJson(recording));

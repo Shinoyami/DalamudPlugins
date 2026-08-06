@@ -49,6 +49,7 @@ public sealed class Plugin : IDalamudPlugin
     private Configuration configuration;
 
     private DateTime? pullStartedAt;
+    private DateTime? encounterTimelineStartedAt;
     private bool wasInCombat;
     private bool mainWindowOpen = true;
     private bool encounterSetupWindowOpen;
@@ -65,6 +66,7 @@ public sealed class Plugin : IDalamudPlugin
     private string editorStatus = string.Empty;
     private readonly HashSet<(nint Address, uint ActionId)> activeCasts = [];
     private readonly HashSet<string> firedSyncTriggers = [];
+    private readonly HashSet<string> firedEncounterTimelineSyncs = [];
     private readonly HashSet<string> syncedPhaseAnchors = [];
     private readonly Dictionary<string, DateTime> lastTriggerTimes = [];
     private readonly Dictionary<string, int> observedSyncOccurrences = [];
@@ -138,6 +140,7 @@ public sealed class Plugin : IDalamudPlugin
             imported.SyncTriggers ??= [];
             imported.StateTransitions ??= [];
             imported.Timeline ??= [];
+            imported.EncounterTimeline ??= [];
             if (imported.Phases.Count == 0)
                 imported.Phases.Add(new FightPhase { Name = "P1", Key = "P1", StartSeconds = 0 });
             var existing = configuration.Fights.FirstOrDefault(fight => fight.Id == imported.Id && !fight.IsBuiltIn);
@@ -147,7 +150,7 @@ public sealed class Plugin : IDalamudPlugin
                 imported.Id = $"{imported.Id}-{Guid.NewGuid():N}";
             configuration.Fights.Add(imported);
             configuration.SelectedFightId = imported.Id;
-            pullStartedAt = null;
+            StopTimer();
             currentPhase = string.Empty;
             Save();
             mainWindowOpen = true;
@@ -183,7 +186,7 @@ public sealed class Plugin : IDalamudPlugin
                 StartTimer(0);
                 break;
             case "stop":
-                pullStartedAt = null;
+                StopTimer();
                 break;
             default:
                 mainWindowOpen = true;
@@ -203,7 +206,7 @@ public sealed class Plugin : IDalamudPlugin
             lastSyncStatus = "Encounter clock synced to combat start.";
         }
         else if (configuration.AutoStartWithCombat && !inCombat && wasInCombat)
-            pullStartedAt = null;
+            StopTimer();
         if (inCombat)
         {
             CheckActorStateTransitions();
@@ -215,6 +218,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             activeCasts.Clear();
             firedSyncTriggers.Clear();
+            firedEncounterTimelineSyncs.Clear();
             syncedPhaseAnchors.Clear();
             lastTriggerTimes.Clear();
             observedSyncOccurrences.Clear();
@@ -345,6 +349,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void ProcessSyncEvent(TimelineSyncEventType eventType, uint eventId)
     {
+        ProcessEncounterTimelineSyncEvent(eventType, eventId);
         var candidates = SelectedFight.SyncTriggers
             .Where(item => item.EventType == eventType && item.EventId == eventId)
             .Where(item => string.IsNullOrEmpty(item.RequiredPhase) ||
@@ -387,17 +392,73 @@ public sealed class Plugin : IDalamudPlugin
         string name, TimelineSyncEventType eventType, uint eventId)
     {
         var elapsedSinceObservation = Math.Max(0, (int)(DateTime.UtcNow - observedAt).TotalSeconds);
-        StartTimer(timelineSeconds + elapsedSinceObservation);
+        SetMitigationClock(timelineSeconds + elapsedSinceObservation);
         if (!string.IsNullOrEmpty(resultPhase))
+        {
             currentPhase = resultPhase;
+            var exactEvent = SelectedFight.EncounterTimeline
+                .Where(item => item.Phase == resultPhase && item.EventType == eventType && item.EventIds.Contains(eventId))
+                .OrderBy(item => item.TimeSeconds)
+                .FirstOrDefault();
+            var encounterSync = exactEvent?.SyncToSeconds ?? EncounterPhaseStart(resultPhase);
+            if (encounterSync is not null)
+                encounterTimelineStartedAt = DateTime.UtcNow - TimeSpan.FromSeconds(encounterSync.Value + elapsedSinceObservation);
+        }
         lastSyncStatus = $"Auto-synced {currentPhase} at {FormatTime(timelineSeconds)} from {name} ({eventType} 0x{eventId:X}).";
     }
 
     private void StartTimer(int elapsedSeconds)
     {
+        SetMitigationClock(elapsedSeconds);
+        var encounterSeconds = elapsedSeconds == 0 ? 0 : EncounterPhaseStart(currentPhase) ?? Math.Max(0, elapsedSeconds);
+        encounterTimelineStartedAt = DateTime.UtcNow - TimeSpan.FromSeconds(encounterSeconds);
+        firedEncounterTimelineSyncs.Clear();
+    }
+
+    private void SetMitigationClock(int elapsedSeconds)
+    {
         pullStartedAt = DateTime.UtcNow - TimeSpan.FromSeconds(Math.Max(0, elapsedSeconds));
         currentPhase = SelectedFight.Phases.LastOrDefault(phase => phase.StartSeconds <= elapsedSeconds)?.Key ??
                        SelectedFight.Phases.FirstOrDefault()?.Key ?? string.Empty;
+    }
+
+    private void StopTimer()
+    {
+        pullStartedAt = null;
+        encounterTimelineStartedAt = null;
+    }
+
+    private float? EncounterPhaseStart(string phase)
+    {
+        var configured = SelectedFight.Phases.FirstOrDefault(item => item.Key == phase)?.EncounterTimelineStartSeconds;
+        if (configured > 0)
+            return configured;
+        return CactbotEncounterTimelines.PhaseStart(SelectedFight.Id, phase) ?? SelectedFight.EncounterTimeline
+            .Where(item => item.Phase == phase)
+            .Select(item => (float?)item.TimeSeconds)
+            .Min();
+    }
+
+    private float EncounterTimelineElapsedSeconds => encounterTimelineStartedAt is null
+        ? 0
+        : Math.Max(0, (float)(DateTime.UtcNow - encounterTimelineStartedAt.Value).TotalSeconds);
+
+    private void ProcessEncounterTimelineSyncEvent(TimelineSyncEventType eventType, uint eventId)
+    {
+        if (encounterTimelineStartedAt is null || SelectedFight.EncounterTimeline.Count == 0)
+            return;
+        var elapsed = EncounterTimelineElapsedSeconds;
+        var candidate = SelectedFight.EncounterTimeline
+            .Where(item => item.EventType == eventType && item.EventIds.Contains(eventId))
+            .Where(item => string.IsNullOrEmpty(item.Phase) || item.Phase == currentPhase)
+            .Where(item => elapsed >= item.TimeSeconds - item.WindowBeforeSeconds &&
+                           elapsed <= item.TimeSeconds + item.WindowAfterSeconds)
+            .OrderBy(item => item.TimeSeconds)
+            .FirstOrDefault(item => !firedEncounterTimelineSyncs.Contains(item.Id));
+        if (candidate is null)
+            return;
+        firedEncounterTimelineSyncs.Add(candidate.Id);
+        encounterTimelineStartedAt = DateTime.UtcNow - TimeSpan.FromSeconds(candidate.SyncToSeconds);
     }
 
     private int ElapsedSeconds => pullStartedAt is null
@@ -414,6 +475,9 @@ public sealed class Plugin : IDalamudPlugin
         if (configuration.ShowOverlay && (configuration.TestOverlay ||
             pullStartedAt is not null && condition[ConditionFlag.InCombat] && IsSelectedFightActive()))
             DrawOverlay();
+        if ((configuration.EnableFightTimeline && encounterTimelineStartedAt is not null &&
+             condition[ConditionFlag.InCombat] && IsSelectedFightActive()) || configuration.TestFightTimeline)
+            DrawFightTimelineOverlay();
     }
 
     private void DrawMainWindow()
@@ -525,7 +589,7 @@ public sealed class Plugin : IDalamudPlugin
         if (configuration.SelectedFightId != fight.Id)
         {
             CancelEdit();
-            pullStartedAt = null;
+            StopTimer();
             currentPhase = string.Empty;
         }
 
@@ -582,7 +646,7 @@ public sealed class Plugin : IDalamudPlugin
             var first = configuration.Fights.First(fight => fight.Category == selectedCategory);
             configuration.SelectedFightId = first.Id;
             CancelEdit();
-            pullStartedAt = null;
+            StopTimer();
             Save();
             currentFight = first;
         }
@@ -597,7 +661,7 @@ public sealed class Plugin : IDalamudPlugin
                 {
                     configuration.SelectedFightId = fight.Id;
                     CancelEdit();
-                    pullStartedAt = null;
+                    StopTimer();
                     activeCasts.Clear();
                     firedSyncTriggers.Clear();
                     syncedPhaseAnchors.Clear();
@@ -677,7 +741,7 @@ public sealed class Plugin : IDalamudPlugin
                 configuration.Fights.Remove(currentFight);
                 configuration.SelectedFightId = configuration.Fights[0].Id;
                 CancelEdit();
-                pullStartedAt = null;
+                StopTimer();
                 Save();
                 ImGui.CloseCurrentPopup();
             }
@@ -969,17 +1033,49 @@ public sealed class Plugin : IDalamudPlugin
             Save();
         }
 
+        ImGui.Separator();
+        var enableFightTimeline = configuration.EnableFightTimeline;
+        if (ImGui.Checkbox("Enable fight timeline", ref enableFightTimeline))
+        {
+            configuration.EnableFightTimeline = enableFightTimeline;
+            Save();
+        }
+        var fightTimelineOpacityPercent = (int)MathF.Round(configuration.FightTimelineOpacity * 100f);
+        ImGui.SetNextItemWidth(180);
+        if (ImGui.SliderInt("Timeline opacity", ref fightTimelineOpacityPercent, 10, 100, "%d%%"))
+        {
+            configuration.FightTimelineOpacity = fightTimelineOpacityPercent / 100f;
+            Save();
+        }
+        var testFightTimeline = configuration.TestFightTimeline;
+        if (ImGui.Checkbox("Test timeline (move it anywhere)", ref testFightTimeline))
+        {
+            configuration.TestFightTimeline = testFightTimeline;
+            Save();
+        }
+        ImGui.TextDisabled(SelectedFight.EncounterTimeline.Count == 0
+            ? "No encounter timeline is installed for this fight."
+            : $"{SelectedFight.EncounterTimeline.Count} timeline entries sourced from cactbot {CactbotEncounterTimelines.SourceCommit[..8]}.");
+
         if (ImGui.Button(pullStartedAt is null ? "Start timeline" : "Reset timeline"))
             StartTimer(0);
         ImGui.SameLine();
         if (ImGui.Button("Stop"))
-            pullStartedAt = null;
+            StopTimer();
         ImGui.SameLine();
         if (ImGui.Button("-1 sec") && pullStartedAt is not null)
+        {
             pullStartedAt = pullStartedAt.Value.AddSeconds(1);
+            if (encounterTimelineStartedAt is not null)
+                encounterTimelineStartedAt = encounterTimelineStartedAt.Value.AddSeconds(1);
+        }
         ImGui.SameLine();
         if (ImGui.Button("+1 sec") && pullStartedAt is not null)
+        {
             pullStartedAt = pullStartedAt.Value.AddSeconds(-1);
+            if (encounterTimelineStartedAt is not null)
+                encounterTimelineStartedAt = encounterTimelineStartedAt.Value.AddSeconds(-1);
+        }
         ImGui.Text($"Encounter time: {FormatTime(ElapsedSeconds)}");
         if (!string.IsNullOrWhiteSpace(lastSyncStatus))
             ImGui.TextColored(new Vector4(0.35f, 0.9f, 0.45f, 1f), lastSyncStatus);
@@ -995,6 +1091,69 @@ public sealed class Plugin : IDalamudPlugin
             }
             ImGui.NewLine();
             ImGui.TextDisabled("Click as the named phase begins to remove timing drift from earlier phase pushes.");
+        }
+    }
+
+    private void DrawFightTimelineOverlay()
+    {
+        var elapsed = EncounterTimelineElapsedSeconds;
+        var entries = configuration.TestFightTimeline
+            ? new List<(float Time, float Duration, string Name)>
+            {
+                (elapsed + 2, 4, "Raidwide"),
+                (elapsed + 9, 5, "Tankbusters"),
+                (elapsed + 17, 0, "Movement mechanic"),
+            }
+            : SelectedFight.EncounterTimeline
+                .Where(item => string.IsNullOrEmpty(item.Phase) || item.Phase == currentPhase)
+                .Where(item => item.TimeSeconds - elapsed is >= -3 and <= 30)
+                .OrderBy(item => item.TimeSeconds)
+                .Take(8)
+                .Select(item => (Time: item.TimeSeconds, Duration: item.DurationSeconds, Name: item.Name))
+                .ToList();
+        if (entries.Count == 0)
+            return;
+
+        ImGui.SetNextWindowSize(new Vector2(360, 0), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowBgAlpha(0.82f * configuration.FightTimelineOpacity);
+        var open = true;
+        if (ImGui.Begin("MitPlan Fight Timeline##FightTimeline", ref open,
+                ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoTitleBar))
+        {
+            ImGui.PushStyleVar(ImGuiStyleVar.Alpha, configuration.FightTimelineOpacity);
+            if (ImGui.BeginTable("##FightTimelineRows", 2, ImGuiTableFlags.SizingFixedFit,
+                    new Vector2(340, 0)))
+            {
+                foreach (var entry in entries)
+                {
+                    var remaining = entry.Time - elapsed;
+                    var color = remaining <= 0
+                        ? new Vector4(1f, 0.42f, 0.25f, 1f)
+                        : remaining <= 5
+                            ? new Vector4(1f, 0.78f, 0.2f, 1f)
+                            : Vector4.One;
+                    ImGui.TableNextRow();
+                    ImGui.TableNextColumn();
+                    ImGui.TextColored(color, remaining <= 0 ? "NOW" : $"{remaining:0.0}");
+                    ImGui.TableNextColumn();
+                    ImGui.TextColored(color, entry.Name);
+                    if (entry.Duration > 0)
+                    {
+                        ImGui.SameLine();
+                        ImGui.TextDisabled($"({entry.Duration:0.#}s)");
+                    }
+                }
+                ImGui.EndTable();
+            }
+            ImGui.PopStyleVar();
+        }
+        ImGui.End();
+
+        if (!open)
+        {
+            configuration.EnableFightTimeline = false;
+            configuration.TestFightTimeline = false;
+            Save();
         }
     }
 

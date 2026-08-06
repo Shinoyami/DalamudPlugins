@@ -17,6 +17,7 @@ internal static class MitPlanExporter
             Name = phase.Name,
             Key = phase.Name,
             StartSeconds = (int)Math.Round(phase.StartSeconds),
+            EncounterTimelineStartSeconds = (int)Math.Round(phase.StartSeconds),
         }).ToList();
 
         var triggers = new List<ExportTrigger>();
@@ -86,6 +87,21 @@ internal static class MitPlanExporter
         }
 
         var id = Slug(recording.FightName);
+        var encounterTimeline = recording.Events
+            .Where(item => item.Included)
+            .OrderBy(item => item.TimeSeconds)
+            .Select(item => new ExportEncounterTimelineEvent
+            {
+                TimeSeconds = (float)item.TimeSeconds,
+                SyncToSeconds = (float)item.TimeSeconds,
+                Name = item.ActionName,
+                Phase = recording.Phases.ElementAtOrDefault(item.PhaseIndex)?.Name ?? "P1",
+                EventType = item.Kind == RecordedEventKind.CastStart ? 0 : 1,
+                EventIds = [item.ActionId],
+                WindowBeforeSeconds = MechanicAnchorMatchWindowSeconds,
+                WindowAfterSeconds = MechanicAnchorMatchWindowSeconds,
+            })
+            .ToList();
         var fight = new ExportFight
         {
             Id = string.IsNullOrWhiteSpace(id) ? Guid.NewGuid().ToString("N") : $"recorded-{id}",
@@ -98,6 +114,7 @@ internal static class MitPlanExporter
             Phases = phases,
             SyncTriggers = triggers,
             Timeline = timeline.OrderBy(item => item.TimeSeconds).ToList(),
+            EncounterTimeline = encounterTimeline,
         };
         return JsonSerializer.Serialize(fight, Options);
     }
@@ -133,6 +150,7 @@ internal static class MitPlanExporter
         public List<object> StateTransitions { get; set; } = [];
         public List<ExportTrigger> SyncTriggers { get; set; } = [];
         public List<ExportTimelineItem> Timeline { get; set; } = [];
+        public List<ExportEncounterTimelineEvent> EncounterTimeline { get; set; } = [];
     }
 
     private sealed class ExportPhase
@@ -140,6 +158,7 @@ internal static class MitPlanExporter
         public string Name { get; set; } = string.Empty;
         public string Key { get; set; } = string.Empty;
         public int StartSeconds { get; set; }
+        public int EncounterTimelineStartSeconds { get; set; }
     }
 
     private sealed class ExportTrigger
@@ -164,5 +183,19 @@ internal static class MitPlanExporter
         public string TargetJob { get; set; } = "Any Job";
         public string TargetRole { get; set; } = "Any Role";
         public string TargetCoTankJob { get; set; } = "Any Tank";
+    }
+
+    private sealed class ExportEncounterTimelineEvent
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
+        public float TimeSeconds { get; set; }
+        public float SyncToSeconds { get; set; }
+        public float DurationSeconds { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Phase { get; set; } = string.Empty;
+        public int? EventType { get; set; }
+        public List<uint> EventIds { get; set; } = [];
+        public float WindowBeforeSeconds { get; set; } = 20;
+        public float WindowAfterSeconds { get; set; } = 20;
     }
 }

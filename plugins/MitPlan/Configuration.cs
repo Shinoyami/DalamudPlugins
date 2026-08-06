@@ -6,7 +6,7 @@ namespace MitPlan;
 
 public sealed class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; } = 12;
+    public int Version { get; set; } = 13;
     public string SelectedFightId { get; set; } = "dmu";
     public List<FightPlan> Fights { get; set; } = [FightPlan.CreateDefault()];
     public string SelectedJob { get; set; } = "WAR";
@@ -27,11 +27,22 @@ public sealed class Configuration : IPluginConfiguration
     public string TtsText { get; set; } = "Use {skills}";
     public AlertDisplayMode AlertDisplay { get; set; } = AlertDisplayMode.NameAndIcon;
     public bool TestOverlay { get; set; }
+    public bool EnableFightTimeline { get; set; }
+    public bool TestFightTimeline { get; set; }
+    public float FightTimelineOpacity { get; set; } = 1f;
 
     public void Migrate()
     {
         Fights ??= [];
         BuiltInPresets.MergeInto(this);
+        foreach (var fight in Fights)
+        {
+            fight.Phases ??= [];
+            fight.StateTransitions ??= [];
+            fight.SyncTriggers ??= [];
+            fight.Timeline ??= [];
+            fight.EncounterTimeline ??= [];
+        }
         if (string.IsNullOrWhiteSpace(SelectedFightId) || Fights.TrueForAll(fight => fight.Id != SelectedFightId))
             SelectedFightId = Fights[0].Id;
         if (Version < 5 && LeadSeconds == 8)
@@ -60,6 +71,7 @@ public sealed class Configuration : IPluginConfiguration
         LeadSeconds = Math.Clamp(LeadSeconds, 0, 60);
         KeepSeconds = Math.Clamp(KeepSeconds, 0, 60);
         TtsText ??= "Use {skills}";
+        FightTimelineOpacity = Math.Clamp(FightTimelineOpacity, 0.1f, 1f);
         if (SelectedCoTankJob is not ("WAR" or "PLD" or "DRK" or "GNB") || SelectedCoTankJob == SelectedJob)
             SelectedCoTankJob = SelectedJob == "DRK" ? "WAR" : "DRK";
         for (var index = 0; index < 4; index++)
@@ -67,7 +79,7 @@ public sealed class Configuration : IPluginConfiguration
             OverlayTextColor[index] = Math.Clamp(OverlayTextColor[index], 0f, 1f);
             OverlayGlowColor[index] = Math.Clamp(OverlayGlowColor[index], 0f, 1f);
         }
-        Version = 12;
+        Version = 13;
     }
 
     private static string RenameHealerRole(string role) => role switch
@@ -99,6 +111,7 @@ public sealed class FightPlan
     public List<ActorStateTransition> StateTransitions { get; set; } = [];
     public List<TimelineSyncTrigger> SyncTriggers { get; set; } = [];
     public List<TimelineItem> Timeline { get; set; } = [];
+    public List<EncounterTimelineEvent> EncounterTimeline { get; set; } = [];
 
     public static FightPlan CreateDefault() => new()
     {
@@ -137,6 +150,21 @@ public sealed class FightPhase
     public string Name { get; set; } = string.Empty;
     public string Key { get; set; } = string.Empty;
     public int StartSeconds { get; set; }
+    public int EncounterTimelineStartSeconds { get; set; }
+}
+
+public sealed class EncounterTimelineEvent
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public float TimeSeconds { get; set; }
+    public float SyncToSeconds { get; set; }
+    public float DurationSeconds { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Phase { get; set; } = string.Empty;
+    public TimelineSyncEventType? EventType { get; set; }
+    public List<uint> EventIds { get; set; } = [];
+    public float WindowBeforeSeconds { get; set; } = 2.5f;
+    public float WindowAfterSeconds { get; set; } = 2.5f;
 }
 
 public enum TimelineSyncEventType
