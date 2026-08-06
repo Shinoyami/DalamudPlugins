@@ -1036,11 +1036,6 @@ public sealed class Plugin : IDalamudPlugin
                     : "Timeline test active";
             ImGui.TextColored(new Vector4(1f, 0.78f, 0.2f, 1f), $"{activeTests}; click again to close.");
         }
-        else
-        {
-            ImGui.TextDisabled("Open a preview, then drag its overlay anywhere on the screen.");
-        }
-
         var showOverlay = configuration.ShowOverlay;
         if (ImGui.Checkbox("Show alert overlay while timer is running", ref showOverlay))
         {
@@ -1145,7 +1140,6 @@ public sealed class Plugin : IDalamudPlugin
             configuration.EnableFightTimeline = !configuration.EnableFightTimeline;
             Save();
         }
-        ImGui.TextDisabled("Visibility only; the encounter clock and mitigation callouts always remain active in the fight.");
         var fightTimelineOpacityPercent = (int)MathF.Round(configuration.FightTimelineOpacity * 100f);
         ImGui.SetNextItemWidth(180);
         if (ImGui.SliderInt("Timeline text opacity", ref fightTimelineOpacityPercent, 10, 100, "%d%%"))
