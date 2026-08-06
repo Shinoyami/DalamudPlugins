@@ -96,7 +96,7 @@ internal static class MitigationTimings
             ["Kerachole"] = 15,
             ["Taurochole"] = 15,
             ["Haima"] = 22,
-            ["Panhaima"] = 22,
+            ["Panhaima"] = 15,
             ["Holos"] = 20,
             ["Physis"] = 15,
             ["Physis II"] = 15,
