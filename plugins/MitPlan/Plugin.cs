@@ -1472,6 +1472,10 @@ public sealed class Plugin : IDalamudPlugin
     private string ResolveSkillName(string instruction)
     {
         var cleaned = instruction.Trim().TrimStart('→').Trim();
+        if (cleaned.Equals("Feint", StringComparison.OrdinalIgnoreCase) &&
+            configuration.SelectedJob is "BLM" or "SMN" or "RDM" or "PCT" or "BLU" &&
+            configuration.SelectedRole is "Melee 1 (M1) (D1)" or "Melee 2 (M2) (D2)")
+            return "Addle";
         if (!cleaned.Contains("Party Mit", StringComparison.OrdinalIgnoreCase))
             return cleaned;
 
@@ -1611,6 +1615,20 @@ public sealed class Plugin : IDalamudPlugin
         "Rampart", TankNinetySecondCooldown(), TankMajorCooldown(), TankShortCooldown(), TankInvulnerability(),
         TankBuddyCooldown(), "Nascent Flash", "Oblation", "Intervention", "Equilibrium", "Aurora");
 
+    private bool TargetRoleMatchesSelectedPlayer(string targetRole)
+    {
+        if (targetRole == "Any Role")
+            return true;
+
+        // Physical-ranged mitigation ownership follows the selected job rather
+        // than the party slot. A BRD/MCH/DNC assigned to M1, M2, R1, or R2 still
+        // receives the plan's physical-ranged mitigation entries.
+        if (configuration.SelectedJob is "BRD" or "MCH" or "DNC")
+            return NormalizeRole(targetRole) == "Phys Ranged (R1) (D3)";
+
+        return NormalizeRole(targetRole) == NormalizeRole(configuration.SelectedRole);
+    }
+
     private IEnumerable<TimelineItem> ApplicableTimeline(bool activePhaseOnly = false)
     {
         var applicable = SelectedFight.Timeline
@@ -1618,7 +1636,7 @@ public sealed class Plugin : IDalamudPlugin
                 item.TimeSeconds >= 0 &&
                 (!activePhaseOnly || TimelinePhase(item) == currentPhase) &&
                 (item.TargetJob == "Any Job" || item.TargetJob == configuration.SelectedJob) &&
-                (item.TargetRole == "Any Role" || NormalizeRole(item.TargetRole) == NormalizeRole(configuration.SelectedRole)) &&
+                TargetRoleMatchesSelectedPlayer(item.TargetRole) &&
                 (item.TargetCoTankJob == "Any Tank" || item.TargetCoTankJob == configuration.SelectedCoTankJob) &&
                 ResolveSkills(item.Skill).Any())
             .OrderBy(MitigationTime);
