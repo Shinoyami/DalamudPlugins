@@ -1251,7 +1251,10 @@ public sealed class Plugin : IDalamudPlugin
         if (active.Count == 0)
             return;
 
-        TriggerAlertAudio(active);
+        // The positioning/style preview is visual-only. Debug timeline playback
+        // and live encounter alerts still use the configured sound or TTS mode.
+        if (!configuration.TestOverlay)
+            TriggerAlertAudio(active);
 
         ImGui.SetNextWindowSize(new Vector2(260, 0), ImGuiCond.FirstUseEver);
         ImGui.SetNextWindowBgAlpha(configuration.OverlayBackgroundOpacity);

@@ -33,7 +33,7 @@
     "Author": "Shinoyami",
     "Name": "MitPlan",
     "InternalName": "MitPlan",
-    "AssemblyVersion": "1.2.0.32",
+    "AssemblyVersion": "1.2.0.33",
     "Description": "Displays editable job/role-specific mitigation reminders using default plans based on PF, Ikuya, and NAUR mitigation strategies where available.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -48,11 +48,11 @@
     "IsTestingExclusive": false,
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Shinoyami/DalamudPlugins",
-    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.32/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.32/latest.zip",
-    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.32/latest.zip",
-    "TestingAssemblyVersion": "1.2.0.32",
-    "Changelog": "Restores prominent Test mitigation alert and Test timeline controls for positioning overlays and previewing opacity, colors, icons, and timeline styling outside combat."
+    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.33/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.33/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.33/latest.zip",
+    "TestingAssemblyVersion": "1.2.0.33",
+    "Changelog": "Makes the Test mitigation alert positioning preview visual-only so it no longer repeatedly plays configured sound or TTS alerts."
   },
   {
     "Author": "Shinoyami",
