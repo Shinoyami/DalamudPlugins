@@ -126,7 +126,7 @@ internal static class BuiltInPresets
             Category = "Savage",
             ContentFinderConditionId = 1075u,
             IsBuiltIn = true,
-            PresetRevision = 3,
+            PresetRevision = 4,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1FmG8NL2DybieW9FuZrPF7w6iABFtGVEzwwoFPCjslZc/edit?usp=sharing",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-derived one-shot phase anchoring.",
             Phases =
@@ -137,6 +137,7 @@ internal static class BuiltInPresets
             SyncTriggers =
             [
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 46376u, TimelineSeconds = 612, Name = "P2 Arcadia Aflame", RequiredPhase = "P1 Lindwurm", ResultPhase = "P2 Lindwurm", SuppressSeconds = 0 },
+                ..CactbotAnchors.For("m12s"),
             ],
             StateTransitions = [],
             Timeline =
@@ -318,7 +319,7 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 280u,
             IsBuiltIn = true,
-            PresetRevision = 3,
+            PresetRevision = 4,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1t4gHDNxppxK1rdYIjZyAEabNUREq5lK-KQLwuV3W77A/edit?gid=0#gid=0",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-derived one-shot phase anchoring.",
             Phases =
@@ -335,6 +336,7 @@ internal static class BuiltInPresets
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 9937u, TimelineSeconds = 500, Name = "P3 Seventh Umbral Era", RequiredPhase = "P2 Nael", ResultPhase = "P3 Bahamut Prime", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 9960u, TimelineSeconds = 843, Name = "P4 Bahamut's Favor", RequiredPhase = "P3 Bahamut Prime", ResultPhase = "P4 Adds", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 9961u, TimelineSeconds = 1200, Name = "P5 Teraflare", RequiredPhase = "P4 Adds", ResultPhase = "P5 Golden Bahamut", SuppressSeconds = 0 },
+                ..CactbotAnchors.For("ucob"),
             ],
             StateTransitions = [],
             Timeline =
@@ -516,7 +518,7 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 539u,
             IsBuiltIn = true,
-            PresetRevision = 4,
+            PresetRevision = 5,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1V-FXFOW8pj87DtqT4KpKSbu3AZYI4diSjH1F-FyNt_o/edit?gid=58668446#gid=58668446",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-derived one-shot phase anchoring.",
             Phases =
@@ -532,7 +534,8 @@ internal static class BuiltInPresets
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 11103u, TimelineSeconds = 300, Name = "P2 Crimson Cyclone", RequiredPhase = "P1 Garuda", ResultPhase = "P2 Ifrit", SuppressSeconds = 3 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 11517u, TimelineSeconds = 600, Name = "P3 Geocrush", RequiredPhase = "P2 Ifrit", ResultPhase = "P3 Titan", SuppressSeconds = 3 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 11509u, TimelineSeconds = 800, Name = "Intermission", RequiredPhase = "P3 Titan", ResultPhase = "Intermission", SuppressSeconds = 3 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 11147u, TimelineSeconds = 955, Name = "P4 Ultima", RequiredPhase = "Intermission", ResultPhase = "P4 Ultima Weapon", SuppressSeconds = 3 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 11147u, TimelineSeconds = 960, Name = "P4 Ultima", RequiredPhase = "Intermission", ResultPhase = "P4 Ultima Weapon", SuppressSeconds = 3 },
+                ..CactbotAnchors.For("uwu"),
             ],
             StateTransitions = [],
             Timeline =
@@ -951,7 +954,7 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 788u,
             IsBuiltIn = true,
-            PresetRevision = 5,
+            PresetRevision = 6,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1YJX933Fe6MeNv06QVQfRUI3oJVfCvm4OqOyLCSjcAJk/edit?gid=1960553822#gid=1960553822",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-derived one-shot phase and checkpoint anchoring.",
             Phases =
@@ -968,12 +971,13 @@ internal static class BuiltInPresets
             SyncTriggers =
             [
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 25544u, TimelineSeconds = 178, Name = "P2 Ascalon's Mercy Concealed", RequiredPhase = "", ResultPhase = "P2 Thordan", SuppressSeconds = 3 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 26376u, TimelineSeconds = 387, Name = "P3 Final Chorus", RequiredPhase = "P2 Thordan", ResultPhase = "P3 Nidhogg", SuppressSeconds = 3 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 26376u, TimelineSeconds = 387, Name = "P3 Final Chorus", RequiredPhase = "P2 Thordan", ResultPhase = "P3 Nidhogg", SuppressSeconds = 3 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 29050u, TimelineSeconds = 535, Name = "P4 Eyes Resentment transition", RequiredPhase = "P3 Nidhogg", ResultPhase = "P4 Eyes", SuppressSeconds = 3 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 25314u, TimelineSeconds = 620, Name = "Rewind Spear of the Fury", RequiredPhase = "P4 Eyes", ResultPhase = "Rewind", SuppressSeconds = 3 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 27526u, TimelineSeconds = 715, Name = "P5 Incarnation", RequiredPhase = "Rewind", ResultPhase = "P5 Dark Thordan", SuppressSeconds = 3 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 26215u, TimelineSeconds = 970, Name = "P6 transition", RequiredPhase = "P5 Dark Thordan", ResultPhase = "P6 Double Dragons", SuppressSeconds = 3 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 29156u, TimelineSeconds = 1217, Name = "P7 Shockwave", RequiredPhase = "P6 Double Dragons", ResultPhase = "P7 Dragon King", SuppressSeconds = 3 },
+                ..CactbotAnchors.For("dsr"),
             ],
             StateTransitions = [],
             Timeline =
@@ -1183,7 +1187,7 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 908u,
             IsBuiltIn = true,
-            PresetRevision = 3,
+            PresetRevision = 4,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1G0q0PHNFAFbJqE2ftparUyAcqCY-Dw9Hlzh6PpjRCKc/edit?gid=223515716#gid=223515716",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-derived one-shot phase anchoring.",
             Phases =
@@ -1206,6 +1210,7 @@ internal static class BuiltInPresets
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 32788u, TimelineSeconds = 819, Name = "P5 Sigma", RequiredPhase = "P5 Delta", ResultPhase = "P5 Sigma", SuppressSeconds = 20 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 32789u, TimelineSeconds = 908, Name = "P5 Omega", RequiredPhase = "P5 Sigma", ResultPhase = "P5 Omega", SuppressSeconds = 20 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 32626u, TimelineSeconds = 1100, Name = "P6 Blind Faith", RequiredPhase = "P5 Omega", ResultPhase = "P6 Alpha Omega", SuppressSeconds = 20 },
+                ..CactbotAnchors.For("top"),
             ],
             StateTransitions = [],
             Timeline =
@@ -1560,7 +1565,7 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 1006u,
             IsBuiltIn = true,
-            PresetRevision = 4,
+            PresetRevision = 5,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1M1LHe4mpb1lyxkLWJxrDwe_JH897nickG3XLTtwnI90/edit?gid=58668446#gid=58668446",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-derived one-shot phase anchoring.",
             Phases =
@@ -1577,6 +1582,7 @@ internal static class BuiltInPresets
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40265u, TimelineSeconds = 410, Name = "P3 Hell's Judgment", RequiredPhase = "P2 Usurper of Frost", ResultPhase = "P3 Oracle of Darkness", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40246u, TimelineSeconds = 584, Name = "P4 Materialization", RequiredPhase = "P3 Oracle of Darkness", ResultPhase = "P4 Enter the Dragon", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40306u, TimelineSeconds = 826, Name = "P5 Fulgent Blade", RequiredPhase = "P4 Enter the Dragon", ResultPhase = "P5 Pandora", SuppressSeconds = 0 },
+                ..CactbotAnchors.For("fru"),
             ],
             StateTransitions = [],
             Timeline =
@@ -1818,7 +1824,7 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 1094u,
             IsBuiltIn = true,
-            PresetRevision = 4,
+            PresetRevision = 6,
             SourceUrl = "https://docs.google.com/spreadsheets/d/10C3ytfH3irHqkb45rchIq5oqdAs-v_OKTj57M-Twi3k/edit?usp=sharing",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-style one-shot phase anchoring.",
             Phases =
@@ -1831,10 +1837,12 @@ internal static class BuiltInPresets
             ],
             SyncTriggers =
             [
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49740u, TimelineSeconds = 221, Name = "P2 Ultimate Embrace", RequiredPhase = "P1 Kefka", ResultPhase = "P2 Forsaken Kefka", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 47803u, TimelineSeconds = 198, Name = "P2 Light of Judgment", RequiredPhase = "P1 Kefka", ResultPhase = "P2 Forsaken Kefka", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 50167u, TimelineSeconds = 382, Name = "P3 Aero III Assault", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49884u, TimelineSeconds = 744, Name = "P4 Kefka Says", RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "P4 Kefka Says", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49884u, TimelineSeconds = 745, Name = "P4 Kefka Says", RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "P4 Kefka Says", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 50173u, TimelineSeconds = 862, Name = "P5 Kefka transition", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 47936u, TimelineSeconds = 907, Name = "P5 Ultima Repeater", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0 },
+                ..CactbotAnchors.For("dmu"),
             ],
             StateTransitions = [],
             Timeline =

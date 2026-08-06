@@ -156,6 +156,7 @@ public sealed class TimelineSyncTrigger
     public string RequiredPhase { get; set; } = string.Empty;
     public string ResultPhase { get; set; } = string.Empty;
     public int SuppressSeconds { get; set; }
+    public int MatchWindowSeconds { get; set; }
 }
 
 public sealed class TimelineItem

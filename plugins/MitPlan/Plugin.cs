@@ -345,15 +345,23 @@ public sealed class Plugin : IDalamudPlugin
 
     private void ProcessSyncEvent(TimelineSyncEventType eventType, uint eventId)
     {
-        foreach (var trigger in SelectedFight.SyncTriggers.Where(item => item.EventType == eventType && item.EventId == eventId))
+        var candidates = SelectedFight.SyncTriggers
+            .Where(item => item.EventType == eventType && item.EventId == eventId)
+            .Where(item => string.IsNullOrEmpty(item.RequiredPhase) ||
+                           currentPhase == item.RequiredPhase || currentPhase == item.ResultPhase)
+            .Where(item => item.MatchWindowSeconds <= 0 || pullStartedAt is not null &&
+                           Math.Abs(ElapsedSeconds - item.TimelineSeconds) <= item.MatchWindowSeconds)
+            .OrderBy(item => item.MatchWindowSeconds > 0
+                ? Math.Abs(ElapsedSeconds - item.TimelineSeconds)
+                : int.MaxValue)
+            .ToList();
+
+        foreach (var trigger in candidates)
         {
             var key = $"{eventType}:{eventId:X}:{trigger.RequiredPhase}:{trigger.ResultPhase}:{trigger.TimelineSeconds}:{Math.Max(1, trigger.Occurrence)}";
             var anchorPhase = string.IsNullOrEmpty(trigger.ResultPhase)
                 ? $"timeline:{trigger.TimelineSeconds}"
                 : trigger.ResultPhase;
-            if (!string.IsNullOrEmpty(trigger.RequiredPhase) &&
-                currentPhase != trigger.RequiredPhase && currentPhase != trigger.ResultPhase)
-                continue;
             if (firedSyncTriggers.Contains(key) || syncedPhaseAnchors.Contains(anchorPhase))
                 continue;
             var observedOccurrence = observedSyncOccurrences.GetValueOrDefault(key) + 1;
@@ -369,6 +377,8 @@ public sealed class Plugin : IDalamudPlugin
             var observedAt = DateTime.UtcNow;
             lastTriggerTimes[key] = observedAt;
             ApplyTimelineSync(trigger.TimelineSeconds, observedAt, trigger.ResultPhase, trigger.Name, eventType, eventId);
+            if (trigger.MatchWindowSeconds > 0)
+                break;
         }
     }
 
@@ -1412,23 +1422,35 @@ public sealed class Plugin : IDalamudPlugin
                      .OrderBy(alert => alert.Item.TimeSeconds)
                      .GroupBy(Signature, StringComparer.OrdinalIgnoreCase))
         {
+            SkillAlert? firstInCluster = null;
             SkillAlert? lastInCluster = null;
             foreach (var alert in group)
             {
                 if (lastInCluster is not null &&
                     alert.Item.TimeSeconds - lastInCluster.Item.TimeSeconds > DuplicateSequenceWindowSeconds)
-                    retained.Add(lastInCluster);
+                {
+                    retained.Add(KeepFirstRepeatedOccurrence(lastInCluster.Skill)
+                        ? firstInCluster!
+                        : lastInCluster);
+                    firstInCluster = alert;
+                }
 
+                firstInCluster ??= alert;
                 lastInCluster = alert;
             }
 
             if (lastInCluster is not null)
-                retained.Add(lastInCluster);
+                retained.Add(KeepFirstRepeatedOccurrence(lastInCluster.Skill)
+                    ? firstInCluster!
+                    : lastInCluster);
         }
 
         foreach (var alert in retained.OrderBy(alert => alert.Item.TimeSeconds))
             yield return alert;
     }
+
+    private static bool KeepFirstRepeatedOccurrence(string skill) =>
+        skill.Equals("Panhaima", StringComparison.OrdinalIgnoreCase);
 
     private static string DefaultRoleForJob(string job) => job switch
     {
