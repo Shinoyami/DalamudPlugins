@@ -78,6 +78,7 @@ internal static class MitPlanExporter
                 timeline.Add(new ExportTimelineItem
                 {
                     TimeSeconds = (int)Math.Round(item.TimeSeconds),
+                    EncounterEventId = $"recorded-{item.Id}",
                     Skill = assignment.Skill.Trim(),
                     Note = $"{phaseName} | {item.SourceName}: {item.ActionName}",
                     TargetJob = assignment.TargetJob,
@@ -92,6 +93,7 @@ internal static class MitPlanExporter
             .OrderBy(item => item.TimeSeconds)
             .Select(item => new ExportEncounterTimelineEvent
             {
+                Id = $"recorded-{item.Id}",
                 TimeSeconds = (float)item.TimeSeconds,
                 SyncToSeconds = (float)item.TimeSeconds,
                 Name = item.ActionName,
@@ -183,6 +185,7 @@ internal static class MitPlanExporter
         public string TargetJob { get; set; } = "Any Job";
         public string TargetRole { get; set; } = "Any Role";
         public string TargetCoTankJob { get; set; } = "Any Tank";
+        public string EncounterEventId { get; set; } = string.Empty;
     }
 
     private sealed class ExportEncounterTimelineEvent

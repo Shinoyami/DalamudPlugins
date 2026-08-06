@@ -6,7 +6,7 @@ namespace MitPlan;
 
 public sealed class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; } = 13;
+    public int Version { get; set; } = 14;
     public string SelectedFightId { get; set; } = "dmu";
     public List<FightPlan> Fights { get; set; } = [FightPlan.CreateDefault()];
     public string SelectedJob { get; set; } = "WAR";
@@ -42,6 +42,7 @@ public sealed class Configuration : IPluginConfiguration
             fight.SyncTriggers ??= [];
             fight.Timeline ??= [];
             fight.EncounterTimeline ??= [];
+            EncounterTimelineLinker.LinkFight(fight);
         }
         if (string.IsNullOrWhiteSpace(SelectedFightId) || Fights.TrueForAll(fight => fight.Id != SelectedFightId))
             SelectedFightId = Fights[0].Id;
@@ -79,7 +80,7 @@ public sealed class Configuration : IPluginConfiguration
             OverlayTextColor[index] = Math.Clamp(OverlayTextColor[index], 0f, 1f);
             OverlayGlowColor[index] = Math.Clamp(OverlayGlowColor[index], 0f, 1f);
         }
-        Version = 13;
+        Version = 14;
     }
 
     private static string RenameHealerRole(string role) => role switch
@@ -196,6 +197,7 @@ public sealed class TimelineItem
     public string TargetJob { get; set; } = "Any Job";
     public string TargetRole { get; set; } = "Any Role";
     public string TargetCoTankJob { get; set; } = "Any Tank";
+    public string EncounterEventId { get; set; } = string.Empty;
 }
 
 public enum AudioAlertMode

@@ -48,7 +48,6 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ICallGateProvider<string, bool> importFightProvider;
     private Configuration configuration;
 
-    private DateTime? pullStartedAt;
     private DateTime? encounterTimelineStartedAt;
     private bool wasInCombat;
     private bool mainWindowOpen = true;
@@ -143,6 +142,7 @@ public sealed class Plugin : IDalamudPlugin
             imported.EncounterTimeline ??= [];
             if (imported.Phases.Count == 0)
                 imported.Phases.Add(new FightPhase { Name = "P1", Key = "P1", StartSeconds = 0 });
+            EncounterTimelineLinker.LinkFight(imported);
             var existing = configuration.Fights.FirstOrDefault(fight => fight.Id == imported.Id && !fight.IsBuiltIn);
             if (existing is not null)
                 configuration.Fights.Remove(existing);
@@ -349,12 +349,12 @@ public sealed class Plugin : IDalamudPlugin
 
     private void ProcessSyncEvent(TimelineSyncEventType eventType, uint eventId)
     {
-        ProcessEncounterTimelineSyncEvent(eventType, eventId);
+        var encounterTimelineSynced = ProcessEncounterTimelineSyncEvent(eventType, eventId);
         var candidates = SelectedFight.SyncTriggers
             .Where(item => item.EventType == eventType && item.EventId == eventId)
             .Where(item => string.IsNullOrEmpty(item.RequiredPhase) ||
                            currentPhase == item.RequiredPhase || currentPhase == item.ResultPhase)
-            .Where(item => item.MatchWindowSeconds <= 0 || pullStartedAt is not null &&
+            .Where(item => item.MatchWindowSeconds <= 0 || encounterTimelineStartedAt is not null &&
                            Math.Abs(ElapsedSeconds - item.TimelineSeconds) <= item.MatchWindowSeconds)
             .OrderBy(item => string.IsNullOrEmpty(item.ResultPhase) ? 1 : 0)
             // cactbot consumes the first active sync in timeline order.  Choosing the
@@ -382,17 +382,17 @@ public sealed class Plugin : IDalamudPlugin
             syncedPhaseAnchors.Add(anchorPhase);
             var observedAt = DateTime.UtcNow;
             lastTriggerTimes[key] = observedAt;
-            ApplyTimelineSync(trigger.TimelineSeconds, observedAt, trigger.ResultPhase, trigger.Name, eventType, eventId);
+            ApplyTimelineSync(trigger.TimelineSeconds, observedAt, trigger.ResultPhase, trigger.Name, eventType, eventId,
+                encounterTimelineSynced);
             if (trigger.MatchWindowSeconds > 0)
                 break;
         }
     }
 
     private void ApplyTimelineSync(int timelineSeconds, DateTime observedAt, string resultPhase,
-        string name, TimelineSyncEventType eventType, uint eventId)
+        string name, TimelineSyncEventType eventType, uint eventId, bool encounterTimelineSynced)
     {
         var elapsedSinceObservation = Math.Max(0, (int)(DateTime.UtcNow - observedAt).TotalSeconds);
-        SetMitigationClock(timelineSeconds + elapsedSinceObservation);
         if (!string.IsNullOrEmpty(resultPhase))
         {
             currentPhase = resultPhase;
@@ -400,70 +400,57 @@ public sealed class Plugin : IDalamudPlugin
                 .Where(item => item.Phase == resultPhase && item.EventType == eventType && item.EventIds.Contains(eventId))
                 .OrderBy(item => item.TimeSeconds)
                 .FirstOrDefault();
-            var encounterSync = exactEvent?.SyncToSeconds ?? EncounterPhaseStart(resultPhase);
+            float? encounterSync = exactEvent is null
+                ? SelectedFight.Phases.FirstOrDefault(phase => phase.Key == resultPhase)?.StartSeconds
+                : EncounterTimelineLinker.EventTime(SelectedFight, exactEvent, syncTarget: true);
             if (encounterSync is not null)
                 encounterTimelineStartedAt = DateTime.UtcNow - TimeSpan.FromSeconds(encounterSync.Value + elapsedSinceObservation);
         }
-        lastSyncStatus = $"Auto-synced {currentPhase} at {FormatTime(timelineSeconds)} from {name} ({eventType} 0x{eventId:X}).";
+        else if (!encounterTimelineSynced)
+            encounterTimelineStartedAt = DateTime.UtcNow - TimeSpan.FromSeconds(timelineSeconds + elapsedSinceObservation);
+        lastSyncStatus = $"Auto-synced {currentPhase} encounter clock at {FormatTime(ElapsedSeconds)} from {name} ({eventType} 0x{eventId:X}).";
     }
 
     private void StartTimer(int elapsedSeconds)
     {
-        SetMitigationClock(elapsedSeconds);
-        var encounterSeconds = elapsedSeconds == 0 ? 0 : EncounterPhaseStart(currentPhase) ?? Math.Max(0, elapsedSeconds);
-        encounterTimelineStartedAt = DateTime.UtcNow - TimeSpan.FromSeconds(encounterSeconds);
-        firedEncounterTimelineSyncs.Clear();
-    }
-
-    private void SetMitigationClock(int elapsedSeconds)
-    {
-        pullStartedAt = DateTime.UtcNow - TimeSpan.FromSeconds(Math.Max(0, elapsedSeconds));
+        encounterTimelineStartedAt = DateTime.UtcNow - TimeSpan.FromSeconds(Math.Max(0, elapsedSeconds));
         currentPhase = SelectedFight.Phases.LastOrDefault(phase => phase.StartSeconds <= elapsedSeconds)?.Key ??
                        SelectedFight.Phases.FirstOrDefault()?.Key ?? string.Empty;
+        firedEncounterTimelineSyncs.Clear();
     }
 
     private void StopTimer()
     {
-        pullStartedAt = null;
         encounterTimelineStartedAt = null;
-    }
-
-    private float? EncounterPhaseStart(string phase)
-    {
-        var configured = SelectedFight.Phases.FirstOrDefault(item => item.Key == phase)?.EncounterTimelineStartSeconds;
-        if (configured > 0)
-            return configured;
-        return CactbotEncounterTimelines.PhaseStart(SelectedFight.Id, phase) ?? SelectedFight.EncounterTimeline
-            .Where(item => item.Phase == phase)
-            .Select(item => (float?)item.TimeSeconds)
-            .Min();
     }
 
     private float EncounterTimelineElapsedSeconds => encounterTimelineStartedAt is null
         ? 0
         : Math.Max(0, (float)(DateTime.UtcNow - encounterTimelineStartedAt.Value).TotalSeconds);
 
-    private void ProcessEncounterTimelineSyncEvent(TimelineSyncEventType eventType, uint eventId)
+    private bool ProcessEncounterTimelineSyncEvent(TimelineSyncEventType eventType, uint eventId)
     {
         if (encounterTimelineStartedAt is null || SelectedFight.EncounterTimeline.Count == 0)
-            return;
+            return false;
         var elapsed = EncounterTimelineElapsedSeconds;
         var candidate = SelectedFight.EncounterTimeline
             .Where(item => item.EventType == eventType && item.EventIds.Contains(eventId))
             .Where(item => string.IsNullOrEmpty(item.Phase) || item.Phase == currentPhase)
-            .Where(item => elapsed >= item.TimeSeconds - item.WindowBeforeSeconds &&
-                           elapsed <= item.TimeSeconds + item.WindowAfterSeconds)
-            .OrderBy(item => item.TimeSeconds)
+            .Where(item => elapsed >= EncounterTimelineLinker.EventTime(SelectedFight, item) - item.WindowBeforeSeconds &&
+                           elapsed <= EncounterTimelineLinker.EventTime(SelectedFight, item) + item.WindowAfterSeconds)
+            .OrderBy(item => EncounterTimelineLinker.EventTime(SelectedFight, item))
             .FirstOrDefault(item => !firedEncounterTimelineSyncs.Contains(item.Id));
         if (candidate is null)
-            return;
+            return false;
         firedEncounterTimelineSyncs.Add(candidate.Id);
-        encounterTimelineStartedAt = DateTime.UtcNow - TimeSpan.FromSeconds(candidate.SyncToSeconds);
+        encounterTimelineStartedAt = DateTime.UtcNow -
+                                     TimeSpan.FromSeconds(EncounterTimelineLinker.EventTime(SelectedFight, candidate, syncTarget: true));
+        return true;
     }
 
-    private int ElapsedSeconds => pullStartedAt is null
+    private int ElapsedSeconds => encounterTimelineStartedAt is null
         ? 0
-        : Math.Max(0, (int)(DateTime.UtcNow - pullStartedAt.Value).TotalSeconds);
+        : Math.Max(0, (int)(DateTime.UtcNow - encounterTimelineStartedAt.Value).TotalSeconds);
 
     private void Save() => pluginInterface.SavePluginConfig(configuration);
 
@@ -473,7 +460,7 @@ public sealed class Plugin : IDalamudPlugin
             DrawMainWindow();
         DrawEncounterSetupWindow();
         if (configuration.ShowOverlay && (configuration.TestOverlay ||
-            pullStartedAt is not null && condition[ConditionFlag.InCombat] && IsSelectedFightActive()))
+            encounterTimelineStartedAt is not null && condition[ConditionFlag.InCombat] && IsSelectedFightActive()))
             DrawOverlay();
         if ((configuration.EnableFightTimeline && encounterTimelineStartedAt is not null &&
              condition[ConditionFlag.InCombat] && IsSelectedFightActive()) || configuration.TestFightTimeline)
@@ -814,8 +801,10 @@ public sealed class Plugin : IDalamudPlugin
             existing.Note = entryNote.Trim();
             existing.TargetJob = entryTargetJob;
             existing.TargetRole = entryTargetRole;
+            existing.EncounterEventId = string.Empty;
         }
 
+        EncounterTimelineLinker.LinkFight(fight);
         fight.Timeline = fight.Timeline.OrderBy(item => item.TimeSeconds).ThenBy(item => item.Skill).ToList();
         Save();
         CancelEdit();
@@ -851,20 +840,24 @@ public sealed class Plugin : IDalamudPlugin
                 .GroupBy(alert => alert.Item.Id)
                 .Select(group => new TimelineDisplayRow(group.First().Item,
                     group.Select(alert => alert.Skill).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()))
-                .OrderBy(row => row.Item.TimeSeconds)
+                .OrderBy(row => fight.Phases.FindIndex(phase => phase.Key == TimelinePhase(row.Item)))
+                .ThenBy(row => MitigationTime(row.Item))
                 .ToList();
-            var phases = fight.Phases.OrderBy(phase => phase.StartSeconds).ToList();
-            var nextPhase = 0;
+            var displayedPhase = string.Empty;
             foreach (var row in orderedItems)
             {
                 var item = row.Item;
-                while (nextPhase < phases.Count && phases[nextPhase].StartSeconds <= item.TimeSeconds)
+                var mitigationTime = MitigationTime(item);
+                var itemPhase = TimelinePhase(item);
+                if (itemPhase != displayedPhase)
                 {
-                    DrawPhaseDivider(phases[nextPhase]);
-                    nextPhase++;
+                    var phase = fight.Phases.FirstOrDefault(candidate => candidate.Key == itemPhase);
+                    if (phase is not null)
+                        DrawPhaseDivider(phase);
+                    displayedPhase = itemPhase;
                 }
                 ImGui.TableNextRow();
-                ImGui.TableNextColumn(); ImGui.Text(item.TimeSeconds < 0 ? "Untimed" : FormatTime(item.TimeSeconds));
+                ImGui.TableNextColumn(); ImGui.Text(item.TimeSeconds < 0 ? "Untimed" : FormatTime((int)MathF.Round(mitigationTime)));
                 ImGui.TableNextColumn(); ImGui.Text(item.TargetJob == "Any Job" ? "Any" : item.TargetJob);
                 ImGui.TableNextColumn(); ImGui.Text(item.TargetRole == "Any Role" ? "Any" : ShortRole(item.TargetRole));
                 ImGui.TableNextColumn(); ImGui.TextWrapped(string.Join(" + ", row.Skills));
@@ -882,6 +875,7 @@ public sealed class Plugin : IDalamudPlugin
         if (deleteId is not null)
         {
             fight.Timeline.RemoveAll(item => item.Id == deleteId);
+            EncounterTimelineLinker.LinkFight(fight);
             if (editingEntryId == deleteId)
                 CancelEdit();
             Save();
@@ -1040,6 +1034,7 @@ public sealed class Plugin : IDalamudPlugin
             configuration.EnableFightTimeline = enableFightTimeline;
             Save();
         }
+        ImGui.TextDisabled("Visibility only; the encounter clock and mitigation callouts always remain active in the fight.");
         var fightTimelineOpacityPercent = (int)MathF.Round(configuration.FightTimelineOpacity * 100f);
         ImGui.SetNextItemWidth(180);
         if (ImGui.SliderInt("Timeline opacity", ref fightTimelineOpacityPercent, 10, 100, "%d%%"))
@@ -1053,28 +1048,25 @@ public sealed class Plugin : IDalamudPlugin
             configuration.TestFightTimeline = testFightTimeline;
             Save();
         }
+        var cactbotTimelineEntries = SelectedFight.EncounterTimeline.Count(item => item.Id.StartsWith("cactbot-", StringComparison.Ordinal));
         ImGui.TextDisabled(SelectedFight.EncounterTimeline.Count == 0
             ? "No encounter timeline is installed for this fight."
-            : $"{SelectedFight.EncounterTimeline.Count} timeline entries sourced from cactbot {CactbotEncounterTimelines.SourceCommit[..8]}.");
+            : $"{cactbotTimelineEntries} cactbot entries; mitigations are linked to this encounter clock.");
 
-        if (ImGui.Button(pullStartedAt is null ? "Start timeline" : "Reset timeline"))
+        if (ImGui.Button(encounterTimelineStartedAt is null ? "Start timeline" : "Reset timeline"))
             StartTimer(0);
         ImGui.SameLine();
         if (ImGui.Button("Stop"))
             StopTimer();
         ImGui.SameLine();
-        if (ImGui.Button("-1 sec") && pullStartedAt is not null)
+        if (ImGui.Button("-1 sec") && encounterTimelineStartedAt is not null)
         {
-            pullStartedAt = pullStartedAt.Value.AddSeconds(1);
-            if (encounterTimelineStartedAt is not null)
-                encounterTimelineStartedAt = encounterTimelineStartedAt.Value.AddSeconds(1);
+            encounterTimelineStartedAt = encounterTimelineStartedAt.Value.AddSeconds(1);
         }
         ImGui.SameLine();
-        if (ImGui.Button("+1 sec") && pullStartedAt is not null)
+        if (ImGui.Button("+1 sec") && encounterTimelineStartedAt is not null)
         {
-            pullStartedAt = pullStartedAt.Value.AddSeconds(-1);
-            if (encounterTimelineStartedAt is not null)
-                encounterTimelineStartedAt = encounterTimelineStartedAt.Value.AddSeconds(-1);
+            encounterTimelineStartedAt = encounterTimelineStartedAt.Value.AddSeconds(-1);
         }
         ImGui.Text($"Encounter time: {FormatTime(ElapsedSeconds)}");
         if (!string.IsNullOrWhiteSpace(lastSyncStatus))
@@ -1106,10 +1098,11 @@ public sealed class Plugin : IDalamudPlugin
             }
             : SelectedFight.EncounterTimeline
                 .Where(item => string.IsNullOrEmpty(item.Phase) || item.Phase == currentPhase)
-                .Where(item => item.TimeSeconds - elapsed is >= -3 and <= 30)
-                .OrderBy(item => item.TimeSeconds)
+                .Select(item => (Item: item, Time: EncounterTimelineLinker.EventTime(SelectedFight, item)))
+                .Where(entry => entry.Time - elapsed is >= -3 and <= 30)
+                .OrderBy(entry => entry.Time)
                 .Take(8)
-                .Select(item => (Time: item.TimeSeconds, Duration: item.DurationSeconds, Name: item.Name))
+                .Select(entry => (entry.Time, Duration: entry.Item.DurationSeconds, Name: entry.Item.Name))
                 .ToList();
         if (entries.Count == 0)
             return;
@@ -1159,12 +1152,12 @@ public sealed class Plugin : IDalamudPlugin
 
     private void DrawOverlay()
     {
-        var elapsed = ElapsedSeconds;
+        var elapsed = EncounterTimelineElapsedSeconds;
         var active = ApplicableSkillAlerts(activePhaseOnly: true)
             .Where(alert => configuration.EnablePersonalTankMitAlerts || !IsResolvedTankPersonalSkill(alert.Skill))
-            .Where(alert => alert.Item.TimeSeconds - elapsed <=
+            .Where(alert => MitigationTime(alert.Item) - elapsed <=
                             MitigationTimings.LeadSeconds(alert.Skill, configuration.LeadSeconds) &&
-                            alert.Item.TimeSeconds - elapsed >= -configuration.KeepSeconds)
+                            MitigationTime(alert.Item) - elapsed >= -configuration.KeepSeconds)
             .Take(5)
             .ToList();
         if (configuration.TestOverlay)
@@ -1224,7 +1217,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
 
         var newAlerts = active.Where(alert => playedAudioAlerts.Add(
-            $"{SelectedFight.Id}:{alert.Item.Id}:{alert.Item.TimeSeconds}:{alert.Skill}")).ToList();
+            $"{SelectedFight.Id}:{alert.Item.Id}:{MitigationTime(alert.Item):0.###}:{alert.Skill}")).ToList();
         if (newAlerts.Count == 0)
             return;
 
@@ -1544,28 +1537,22 @@ public sealed class Plugin : IDalamudPlugin
                 (item.TargetRole == "Any Role" || NormalizeRole(item.TargetRole) == NormalizeRole(configuration.SelectedRole)) &&
                 (item.TargetCoTankJob == "Any Tank" || item.TargetCoTankJob == configuration.SelectedCoTankJob) &&
                 ResolveSkills(item.Skill).Any())
-            .OrderBy(item => item.TimeSeconds);
+            .OrderBy(MitigationTime);
         return applicable;
     }
 
-    private string TimelinePhase(TimelineItem item)
-    {
-        var phaseSeparator = item.Note.IndexOf('|');
-        if (phaseSeparator > 0)
-        {
-            var phaseLabel = item.Note[..phaseSeparator].Trim();
-            var labeledPhase = SelectedFight.Phases.FirstOrDefault(phase =>
-                phase.Key.Equals(phaseLabel, StringComparison.OrdinalIgnoreCase) ||
-                phase.Key.StartsWith($"{phaseLabel} ", StringComparison.OrdinalIgnoreCase));
-            if (labeledPhase is not null)
-                return labeledPhase.Key;
-        }
+    private EncounterTimelineEvent? LinkedEncounterEvent(TimelineItem item) =>
+        string.IsNullOrEmpty(item.EncounterEventId)
+            ? null
+            : SelectedFight.EncounterTimeline.FirstOrDefault(candidate => candidate.Id == item.EncounterEventId);
 
-        return SelectedFight.Phases
-            .Where(phase => phase.StartSeconds <= item.TimeSeconds)
-            .OrderByDescending(phase => phase.StartSeconds)
-            .FirstOrDefault()?.Key ?? SelectedFight.Phases.FirstOrDefault()?.Key ?? string.Empty;
+    private float MitigationTime(TimelineItem item)
+    {
+        var linked = LinkedEncounterEvent(item);
+        return linked is null ? item.TimeSeconds : EncounterTimelineLinker.EventTime(SelectedFight, linked);
     }
+
+    private string TimelinePhase(TimelineItem item) => EncounterTimelineLinker.TimelinePhase(SelectedFight, item);
 
     private IEnumerable<SkillAlert> ApplicableSkillAlerts(bool activePhaseOnly = false) =>
         CollapseRepeatedSkillAlerts(ApplicableTimeline(activePhaseOnly)
@@ -1579,7 +1566,7 @@ public sealed class Plugin : IDalamudPlugin
 
         var retained = new List<SkillAlert>();
         foreach (var group in alerts
-                     .OrderBy(alert => alert.Item.TimeSeconds)
+                     .OrderBy(alert => MitigationTime(alert.Item))
                      .GroupBy(Signature, StringComparer.OrdinalIgnoreCase))
         {
             SkillAlert? firstInCluster = null;
@@ -1587,7 +1574,7 @@ public sealed class Plugin : IDalamudPlugin
             foreach (var alert in group)
             {
                 if (lastInCluster is not null &&
-                    alert.Item.TimeSeconds - lastInCluster.Item.TimeSeconds > DuplicateSequenceWindowSeconds)
+                    MitigationTime(alert.Item) - MitigationTime(lastInCluster.Item) > DuplicateSequenceWindowSeconds)
                 {
                     retained.Add(KeepFirstRepeatedOccurrence(lastInCluster.Skill)
                         ? firstInCluster!
@@ -1605,7 +1592,7 @@ public sealed class Plugin : IDalamudPlugin
                     : lastInCluster);
         }
 
-        foreach (var alert in retained.OrderBy(alert => alert.Item.TimeSeconds))
+        foreach (var alert in retained.OrderBy(alert => MitigationTime(alert.Item)))
             yield return alert;
     }
 
