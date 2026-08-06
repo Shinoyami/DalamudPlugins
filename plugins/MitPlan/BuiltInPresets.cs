@@ -518,7 +518,7 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 539u,
             IsBuiltIn = true,
-            PresetRevision = 5,
+            PresetRevision = 6,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1V-FXFOW8pj87DtqT4KpKSbu3AZYI4diSjH1F-FyNt_o/edit?gid=58668446#gid=58668446",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-derived one-shot phase anchoring.",
             Phases =
@@ -533,8 +533,8 @@ internal static class BuiltInPresets
             [
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 11103u, TimelineSeconds = 300, Name = "P2 Crimson Cyclone", RequiredPhase = "P1 Garuda", ResultPhase = "P2 Ifrit", SuppressSeconds = 3 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 11517u, TimelineSeconds = 600, Name = "P3 Geocrush", RequiredPhase = "P2 Ifrit", ResultPhase = "P3 Titan", SuppressSeconds = 3 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 11509u, TimelineSeconds = 800, Name = "Intermission", RequiredPhase = "P3 Titan", ResultPhase = "Intermission", SuppressSeconds = 3 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 11147u, TimelineSeconds = 960, Name = "P4 Ultima", RequiredPhase = "Intermission", ResultPhase = "P4 Ultima Weapon", SuppressSeconds = 3 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 11509u, TimelineSeconds = 800, Name = "Transition", RequiredPhase = "P3 Titan", ResultPhase = "Transition", SuppressSeconds = 3, PhaseOnly = true },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 11147u, TimelineSeconds = 960, Name = "P4 Ultima transition", RequiredPhase = "Transition", ResultPhase = "P4 Ultima Weapon", SuppressSeconds = 3, PhaseOnly = true },
                 ..CactbotAnchors.For("uwu"),
             ],
             StateTransitions = [],
@@ -1824,7 +1824,7 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 1094u,
             IsBuiltIn = true,
-            PresetRevision = 6,
+            PresetRevision = 7,
             SourceUrl = "https://docs.google.com/spreadsheets/d/10C3ytfH3irHqkb45rchIq5oqdAs-v_OKTj57M-Twi3k/edit?usp=sharing",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with cactbot-style one-shot phase anchoring.",
             Phases =
@@ -1838,9 +1838,11 @@ internal static class BuiltInPresets
             SyncTriggers =
             [
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49740u, TimelineSeconds = 215, Name = "P2 Ultimate Embrace", RequiredPhase = "P1 Kefka", ResultPhase = "P2 Forsaken Kefka", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 50167u, TimelineSeconds = 384, Name = "P3 Aero III Assault", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 50167u, TimelineSeconds = 384, Name = "P3 Aero III Assault transition", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0, PhaseOnly = true },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 49890u, TimelineSeconds = 428.5f, Name = "P3 first The Decisive Battle (Chaos)", RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "", SuppressSeconds = 0, AllowNonCastSync = true },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 49891u, TimelineSeconds = 428.5f, Name = "P3 first The Decisive Battle (Exdeath)", RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "", SuppressSeconds = 0, AllowNonCastSync = true },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49884u, TimelineSeconds = 745, Name = "P4 Kefka Says", RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "P4 Kefka Says", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 50173u, TimelineSeconds = 867, Name = "P5 Kefka transition", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 50173u, TimelineSeconds = 867, Name = "P5 Kefka transition", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0, PhaseOnly = true },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 47936u, TimelineSeconds = 906, Name = "P5 Ultima Repeater", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0 },
                 ..CactbotAnchors.For("dmu"),
             ],

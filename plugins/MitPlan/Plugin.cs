@@ -49,6 +49,7 @@ public sealed class Plugin : IDalamudPlugin
     private Configuration configuration;
 
     private DateTime? encounterTimelineStartedAt;
+    private bool debugTimelineRunning;
     private bool wasInCombat;
     private bool mainWindowOpen;
     private bool encounterSetupWindowOpen;
@@ -197,15 +198,22 @@ public sealed class Plugin : IDalamudPlugin
         var inCombat = condition[ConditionFlag.InCombat];
         if (inCombat && !wasInCombat && IsSelectedFightActive())
         {
+            StopTimer();
+            ClearEncounterRuntimeState();
             StartTimer(0);
             if (!string.IsNullOrEmpty(currentPhase))
                 syncedPhaseAnchors.Add(currentPhase);
-            lastSyncStatus = "Encounter clock synced to combat start.";
+            lastSyncStatus = "P1 encounter clock synchronized to combat start.";
         }
-        else if (!inCombat && wasInCombat)
+        else if (!inCombat && wasInCombat && !debugTimelineRunning)
             StopTimer();
-        if (inCombat)
+        if (debugTimelineRunning)
         {
+            UpdateDebugTimelinePhase();
+        }
+        else if (inCombat)
+        {
+            AdvanceDmuP2AtTimelineBoundary();
             CheckActorStateTransitions();
             CheckTimelineSyncTriggers();
             CheckResolvedAbilities();
@@ -228,6 +236,61 @@ public sealed class Plugin : IDalamudPlugin
             playedAudioAlerts.Clear();
         }
         wasInCombat = inCombat;
+    }
+
+    private void StartDebugTimeline()
+    {
+        ClearEncounterRuntimeState();
+        StartTimer(0);
+        debugTimelineRunning = true;
+        lastSyncStatus = $"Debugging {SelectedFight.Name} from 00:00.";
+    }
+
+    private void StopDebugTimeline()
+    {
+        StopTimer();
+        ClearEncounterRuntimeState();
+        lastSyncStatus = "Debug timeline stopped.";
+    }
+
+    private void UpdateDebugTimelinePhase()
+    {
+        var elapsed = EncounterTimelineElapsedSeconds;
+        var phase = SelectedFight.Phases.LastOrDefault(item => item.StartSeconds <= elapsed) ??
+                    SelectedFight.Phases.FirstOrDefault();
+        if (phase is not null && phase.Key != currentPhase)
+        {
+            currentPhase = phase.Key;
+            lastSyncStatus = $"Debug timeline advanced to {currentPhase}.";
+        }
+    }
+
+    private void ClearEncounterRuntimeState()
+    {
+        activeCasts.Clear();
+        firedSyncTriggers.Clear();
+        firedEncounterTimelineSyncs.Clear();
+        syncedPhaseAnchors.Clear();
+        lastTriggerTimes.Clear();
+        observedSyncOccurrences.Clear();
+        activeStatuses.Clear();
+        actionEffectWatcher.Clear();
+        currentPhase = string.Empty;
+        seenActorDataIds.Clear();
+        missingActorSince.Clear();
+        firedStateTransitions.Clear();
+        playedAudioAlerts.Clear();
+    }
+
+    private void AdvanceDmuP2AtTimelineBoundary()
+    {
+        if (SelectedFight.Id != "dmu" || currentPhase != "P1 Kefka")
+            return;
+        var p2 = SelectedFight.Phases.FirstOrDefault(phase => phase.Key == "P2 Forsaken Kefka");
+        if (p2 is null || EncounterTimelineElapsedSeconds < p2.StartSeconds)
+            return;
+        currentPhase = p2.Key;
+        lastSyncStatus = "DMU P2 timeline activated at the P1 untargetable boundary; waiting for its precision anchor.";
     }
 
     private void CheckActorStateTransitions()
@@ -346,7 +409,8 @@ public sealed class Plugin : IDalamudPlugin
 
     private void ProcessSyncEvent(TimelineSyncEventType eventType, uint eventId)
     {
-        var encounterTimelineSynced = ProcessEncounterTimelineSyncEvent(eventType, eventId);
+        var encounterTimelineSynced = eventType == TimelineSyncEventType.CastStart &&
+                                      ProcessEncounterTimelineSyncEvent(eventType, eventId);
         var candidates = SelectedFight.SyncTriggers
             .Where(item => item.EventType == eventType && item.EventId == eventId)
             .Where(item => string.IsNullOrEmpty(item.RequiredPhase) ||
@@ -362,9 +426,11 @@ public sealed class Plugin : IDalamudPlugin
         foreach (var trigger in candidates)
         {
             var key = $"{eventType}:{eventId:X}:{trigger.RequiredPhase}:{trigger.ResultPhase}:{trigger.TimelineSeconds}:{Math.Max(1, trigger.Occurrence)}";
-            var anchorPhase = string.IsNullOrEmpty(trigger.ResultPhase)
-                ? $"timeline:{trigger.TimelineSeconds}"
-                : trigger.ResultPhase;
+            var anchorPhase = !string.IsNullOrEmpty(trigger.ResultPhase)
+                ? trigger.ResultPhase
+                : !string.IsNullOrEmpty(trigger.RequiredPhase)
+                    ? trigger.RequiredPhase
+                    : currentPhase;
             if (firedSyncTriggers.Contains(key) || syncedPhaseAnchors.Contains(anchorPhase))
                 continue;
             var observedOccurrence = observedSyncOccurrences.GetValueOrDefault(key) + 1;
@@ -374,6 +440,23 @@ public sealed class Plugin : IDalamudPlugin
             if (trigger.SuppressSeconds > 0 && lastTriggerTimes.TryGetValue(key, out var last) &&
                 DateTime.UtcNow - last < TimeSpan.FromSeconds(trigger.SuppressSeconds))
                 continue;
+
+            // Phase-only and non-cast transition signals may tell us which phase
+            // is active without correcting its clock. A small number of explicitly
+            // configured phase anchors (such as DMU P3's first Decisive Battle)
+            // resolve as abilities rather than cast starts and opt in separately.
+            var canSyncClock = eventType == TimelineSyncEventType.CastStart || trigger.AllowNonCastSync ||
+                               !string.IsNullOrEmpty(trigger.ResultPhase);
+            if (trigger.PhaseOnly || !canSyncClock)
+            {
+                if (string.IsNullOrEmpty(trigger.ResultPhase))
+                    continue;
+                firedSyncTriggers.Add(key);
+                lastTriggerTimes[key] = DateTime.UtcNow;
+                currentPhase = trigger.ResultPhase;
+                lastSyncStatus = $"Detected {currentPhase}; waiting for its first cast anchor.";
+                continue;
+            }
 
             firedSyncTriggers.Add(key);
             syncedPhaseAnchors.Add(anchorPhase);
@@ -386,24 +469,13 @@ public sealed class Plugin : IDalamudPlugin
         }
     }
 
-    private void ApplyTimelineSync(int timelineSeconds, DateTime observedAt, string resultPhase,
+    private void ApplyTimelineSync(float timelineSeconds, DateTime observedAt, string resultPhase,
         string name, TimelineSyncEventType eventType, uint eventId, bool encounterTimelineSynced)
     {
         var elapsedSinceObservation = Math.Max(0, (int)(DateTime.UtcNow - observedAt).TotalSeconds);
         if (!string.IsNullOrEmpty(resultPhase))
-        {
             currentPhase = resultPhase;
-            var exactEvent = SelectedFight.EncounterTimeline
-                .Where(item => item.Phase == resultPhase && item.EventType == eventType && item.EventIds.Contains(eventId))
-                .OrderBy(item => item.TimeSeconds)
-                .FirstOrDefault();
-            float? encounterSync = exactEvent is null
-                ? SelectedFight.Phases.FirstOrDefault(phase => phase.Key == resultPhase)?.StartSeconds
-                : EncounterTimelineLinker.EventTime(SelectedFight, exactEvent, syncTarget: true);
-            if (encounterSync is not null)
-                encounterTimelineStartedAt = DateTime.UtcNow - TimeSpan.FromSeconds(encounterSync.Value + elapsedSinceObservation);
-        }
-        else if (!encounterTimelineSynced)
+        if (!encounterTimelineSynced || !string.IsNullOrEmpty(resultPhase))
             encounterTimelineStartedAt = DateTime.UtcNow - TimeSpan.FromSeconds(timelineSeconds + elapsedSinceObservation);
         lastSyncStatus = $"Auto-synced {currentPhase} encounter clock at {FormatTime(ElapsedSeconds)} from {name} ({eventType} 0x{eventId:X}).";
     }
@@ -419,6 +491,7 @@ public sealed class Plugin : IDalamudPlugin
     private void StopTimer()
     {
         encounterTimelineStartedAt = null;
+        debugTimelineRunning = false;
     }
 
     private float EncounterTimelineElapsedSeconds => encounterTimelineStartedAt is null
@@ -428,6 +501,8 @@ public sealed class Plugin : IDalamudPlugin
     private bool ProcessEncounterTimelineSyncEvent(TimelineSyncEventType eventType, uint eventId)
     {
         if (encounterTimelineStartedAt is null || SelectedFight.EncounterTimeline.Count == 0)
+            return false;
+        if (!string.IsNullOrEmpty(currentPhase) && syncedPhaseAnchors.Contains(currentPhase))
             return false;
         var elapsed = EncounterTimelineElapsedSeconds;
         var candidate = SelectedFight.EncounterTimeline
@@ -440,6 +515,8 @@ public sealed class Plugin : IDalamudPlugin
         if (candidate is null)
             return false;
         firedEncounterTimelineSyncs.Add(candidate.Id);
+        if (!string.IsNullOrEmpty(currentPhase))
+            syncedPhaseAnchors.Add(currentPhase);
         encounterTimelineStartedAt = DateTime.UtcNow -
                                      TimeSpan.FromSeconds(EncounterTimelineLinker.EventTime(SelectedFight, candidate, syncTarget: true));
         return true;
@@ -456,11 +533,11 @@ public sealed class Plugin : IDalamudPlugin
         if (mainWindowOpen)
             DrawMainWindow();
         DrawEncounterSetupWindow();
-        if (configuration.ShowOverlay && (configuration.TestOverlay ||
+        if (configuration.ShowOverlay && (configuration.TestOverlay || debugTimelineRunning ||
             encounterTimelineStartedAt is not null && condition[ConditionFlag.InCombat] && IsSelectedFightActive()))
             DrawOverlay();
-        if ((configuration.EnableFightTimeline && encounterTimelineStartedAt is not null &&
-             condition[ConditionFlag.InCombat] && IsSelectedFightActive()) || configuration.TestFightTimeline)
+        if ((configuration.EnableFightTimeline && (debugTimelineRunning || encounterTimelineStartedAt is not null &&
+             condition[ConditionFlag.InCombat] && IsSelectedFightActive())) || configuration.TestFightTimeline)
             DrawFightTimelineOverlay();
     }
 
@@ -913,6 +990,29 @@ public sealed class Plugin : IDalamudPlugin
     private void DrawTimerControls()
     {
         ImGui.TextDisabled("The encounter clock starts automatically when combat begins and stops when combat ends.");
+        if (debugTimelineRunning)
+        {
+            if (ImGui.Button("Stop debug timeline"))
+                StopDebugTimeline();
+            ImGui.SameLine();
+            ImGui.TextColored(new Vector4(1f, 0.78f, 0.2f, 1f),
+                $"Simulating {SelectedFight.Name} at {FormatTime(ElapsedSeconds)}");
+        }
+        else
+        {
+            var inCombat = condition[ConditionFlag.InCombat];
+            if (inCombat)
+                ImGui.BeginDisabled();
+            if (ImGui.Button("Debug timeline from 00:00"))
+                StartDebugTimeline();
+            if (inCombat)
+                ImGui.EndDisabled();
+            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                ImGui.SetTooltip(inCombat
+                    ? "Leave combat before starting the debug timeline."
+                    : "Simulate the selected fight and mitigation callouts without entering the duty.");
+        }
+        ImGui.TextDisabled("Debug mode uses the selected job, role, mitigation timing, overlay, and audio settings.");
         var showOverlay = configuration.ShowOverlay;
         if (ImGui.Checkbox("Show alert overlay while timer is running", ref showOverlay))
         {
@@ -1052,7 +1152,7 @@ public sealed class Plugin : IDalamudPlugin
     private void DrawFightTimelineOverlay()
     {
         var elapsed = EncounterTimelineElapsedSeconds;
-        var entries = configuration.TestFightTimeline
+        var entries = configuration.TestFightTimeline && !debugTimelineRunning
             ? new List<(float Time, float Duration, string Name)>
             {
                 (elapsed + 2, 4, "Raidwide"),
@@ -1123,7 +1223,7 @@ public sealed class Plugin : IDalamudPlugin
                             MitigationTime(alert.Item) - elapsed >= -configuration.KeepSeconds)
             .Take(5)
             .ToList();
-        if (configuration.TestOverlay)
+        if (configuration.TestOverlay && !debugTimelineRunning)
             active =
             [
                 new SkillAlert(new TimelineItem { Id = "test-reprisal", Skill = "Reprisal" }, "Reprisal"),

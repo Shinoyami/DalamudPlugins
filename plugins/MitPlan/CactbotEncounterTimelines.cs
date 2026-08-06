@@ -58,7 +58,11 @@ internal static class CactbotEncounterTimelines
         ("fru", "P4 Enter the Dragon") => 680.8f,
         ("fru", "P5 Pandora") => 1029.6f,
         ("dmu", "P1 Kefka") => 0,
-        ("dmu", "P2 Forsaken Kefka") => 207.6f,
+        // P2's cactbot event timestamps already share the mitigation plan's global
+        // clock (Ultimate Embrace 220.1, Forsaken 235.3). The 207.6 section boundary
+        // is downtime, not the plan's 197.0 phase divider, so applying that delta
+        // incorrectly moves every P2 event 10.6 seconds early.
+        ("dmu", "P2 Forsaken Kefka") => 197,
         ("dmu", "P3 Chaos & Exdeath") => 497,
         ("dmu", "P4 Kefka Says") => 995,
         ("dmu", "P5 Kefka Reimagined") => 1255.6f,
