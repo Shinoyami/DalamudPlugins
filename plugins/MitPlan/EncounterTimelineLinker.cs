@@ -133,7 +133,7 @@ internal static class EncounterTimelineLinker
     {
         if (phase.EncounterTimelineStartSeconds > 0)
             return phase.EncounterTimelineStartSeconds;
-        return CactbotEncounterTimelines.PhaseStart(fight.Id, phase.Key) ?? fight.EncounterTimeline
+        return EncounterTimelines.PhaseStart(fight.Id, phase.Key) ?? fight.EncounterTimeline
             .Where(item => item.Phase == phase.Key)
             .Select(item => (float?)item.TimeSeconds)
             .Min() ?? phase.StartSeconds;

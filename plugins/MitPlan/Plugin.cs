@@ -418,7 +418,7 @@ public sealed class Plugin : IDalamudPlugin
             .Where(item => item.MatchWindowSeconds <= 0 || encounterTimelineStartedAt is not null &&
                            Math.Abs(ElapsedSeconds - item.TimelineSeconds) <= item.MatchWindowSeconds)
             .OrderBy(item => string.IsNullOrEmpty(item.ResultPhase) ? 1 : 0)
-            // cactbot consumes the first active sync in timeline order.  Choosing the
+            // The encounter clock consumes the first active sync in timeline order. Choosing the
             // nearest point can skip forward when one action ID repeats rapidly.
             .ThenBy(item => item.TimelineSeconds)
             .ToList();
@@ -988,7 +988,6 @@ public sealed class Plugin : IDalamudPlugin
 
     private void DrawTimerControls()
     {
-        ImGui.TextDisabled("The encounter clock starts automatically when combat begins and stops when combat ends.");
         if (debugTimelineRunning)
         {
             if (ImGui.Button("Stop debug timeline"))
@@ -1011,8 +1010,6 @@ public sealed class Plugin : IDalamudPlugin
                     ? "Leave combat before starting the debug timeline."
                     : "Simulate the selected fight and mitigation callouts without entering the duty.");
         }
-        ImGui.TextDisabled("Debug mode uses the selected job, role, mitigation timing, overlay, and audio settings.");
-
         ImGui.Separator();
         ImGui.TextUnformatted("Overlay positioning tests");
         if (ImGui.Button("Test mitigation alert"))
@@ -1082,7 +1079,6 @@ public sealed class Plugin : IDalamudPlugin
             configuration.OverlayGlowColor = ColorToConfig(glowColor);
             Save();
         }
-        ImGui.TextDisabled("Known mitigation skills use their individual effect-duration timing.");
         var lead = configuration.LeadSeconds;
         ImGui.SetNextItemWidth(100);
         if (ImGui.InputInt("Fallback warning for uncatalogued skills (seconds)", ref lead))
@@ -1152,15 +1148,18 @@ public sealed class Plugin : IDalamudPlugin
         ImGui.TextDisabled("Visibility only; the encounter clock and mitigation callouts always remain active in the fight.");
         var fightTimelineOpacityPercent = (int)MathF.Round(configuration.FightTimelineOpacity * 100f);
         ImGui.SetNextItemWidth(180);
-        if (ImGui.SliderInt("Timeline opacity", ref fightTimelineOpacityPercent, 10, 100, "%d%%"))
+        if (ImGui.SliderInt("Timeline text opacity", ref fightTimelineOpacityPercent, 10, 100, "%d%%"))
         {
             configuration.FightTimelineOpacity = fightTimelineOpacityPercent / 100f;
             Save();
         }
-        var cactbotTimelineEntries = SelectedFight.EncounterTimeline.Count(item => item.Id.StartsWith("cactbot-", StringComparison.Ordinal));
-        ImGui.TextDisabled(SelectedFight.EncounterTimeline.Count == 0
-            ? "No encounter timeline is installed for this fight."
-            : $"{cactbotTimelineEntries} cactbot entries; mitigations are linked to this encounter clock.");
+        var fightTimelineBackgroundOpacityPercent = (int)MathF.Round(configuration.FightTimelineBackgroundOpacity * 100f);
+        ImGui.SetNextItemWidth(180);
+        if (ImGui.SliderInt("Timeline black background opacity", ref fightTimelineBackgroundOpacityPercent, 0, 100, "%d%%"))
+        {
+            configuration.FightTimelineBackgroundOpacity = fightTimelineBackgroundOpacityPercent / 100f;
+            Save();
+        }
 
         ImGui.Text($"Encounter time: {FormatTime(ElapsedSeconds)}");
         if (!string.IsNullOrWhiteSpace(lastSyncStatus))
@@ -1189,7 +1188,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
 
         ImGui.SetNextWindowSize(new Vector2(360, 0), ImGuiCond.FirstUseEver);
-        ImGui.SetNextWindowBgAlpha(0.82f * configuration.FightTimelineOpacity);
+        ImGui.SetNextWindowBgAlpha(0.82f * configuration.FightTimelineBackgroundOpacity);
         var open = true;
         if (ImGui.Begin("MitPlan Fight Timeline##FightTimeline", ref open,
                 ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoTitleBar))

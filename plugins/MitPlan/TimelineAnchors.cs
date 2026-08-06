@@ -3,12 +3,11 @@ using System.Linq;
 
 namespace MitPlan;
 
-// Stable action syncs from cactbot's encounter timelines, translated to MitPlan's phase clocks.
-internal static class CactbotAnchors
+// Stable action syncs translated to MitPlan's phase clocks.
+internal static class TimelineAnchors
 {
-    // Keep a wider acquisition window than cactbot's default so a one-shot
-    // anchor can recover a clock that has already drifted. Matching within the
-    // window still follows cactbot's chronological order.
+    // Keep a wide acquisition window so a one-shot anchor can recover a clock
+    // that has already drifted. Matching follows chronological timeline order.
     private const int DefaultMatchWindowSeconds = 20;
 
     public static IEnumerable<TimelineSyncTrigger> For(string fightId) => (fightId switch
@@ -26,7 +25,7 @@ internal static class CactbotAnchors
         EventType = anchor.Type,
         EventId = anchor.Id,
         TimelineSeconds = anchor.Time,
-        Name = $"0x{anchor.Id:X} cactbot sync",
+        Name = $"0x{anchor.Id:X} timeline sync",
         RequiredPhase = anchor.Phase,
         ResultPhase = string.Empty,
         SuppressSeconds = 0,

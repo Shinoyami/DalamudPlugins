@@ -8,11 +8,9 @@ using System.Text.Json.Serialization;
 
 namespace MitPlan;
 
-// Visible encounter events and sync metadata generated from OverlayPlugin/cactbot
-// commit e39b65d4f971a18de41e84b61f82d67d0f555d29. Mitigation plans are not stored here.
-internal static class CactbotEncounterTimelines
+// Embedded encounter events and synchronization metadata. Mitigation plans are not stored here.
+internal static class EncounterTimelines
 {
-    public const string SourceCommit = "e39b65d4f971a18de41e84b61f82d67d0f555d29";
     private static readonly Lazy<Dictionary<string, List<EncounterTimelineEvent>>> Timelines = new(Decode);
 
     public static IReadOnlyList<EncounterTimelineEvent> For(string fightId) =>
@@ -58,7 +56,7 @@ internal static class CactbotEncounterTimelines
         ("fru", "P4 Enter the Dragon") => 680.8f,
         ("fru", "P5 Pandora") => 1029.6f,
         ("dmu", "P1 Kefka") => 0,
-        // P2's cactbot event timestamps already share the mitigation plan's global
+        // P2's event timestamps already share the mitigation plan's global
         // clock (Ultimate Embrace 220.1, Forsaken 235.3). The 207.6 section boundary
         // is downtime, not the plan's 197.0 phase divider, so applying that delta
         // incorrectly moves every P2 event 10.6 seconds early.
@@ -78,7 +76,7 @@ internal static class CactbotEncounterTimelines
             pair => pair.Key,
             pair => pair.Value.Select((item, index) => new EncounterTimelineEvent
             {
-                Id = $"cactbot-{pair.Key}-{index}",
+                Id = $"timeline-{pair.Key}-{index}",
                 TimeSeconds = item.Time,
                 SyncToSeconds = item.SyncTo,
                 DurationSeconds = item.Duration,

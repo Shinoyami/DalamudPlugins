@@ -6,7 +6,7 @@ namespace MitPlan;
 
 public sealed class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; } = 14;
+    public int Version { get; set; } = 15;
     public string SelectedFightId { get; set; } = "dmu";
     public List<FightPlan> Fights { get; set; } = [FightPlan.CreateDefault()];
     public string SelectedJob { get; set; } = "WAR";
@@ -29,6 +29,7 @@ public sealed class Configuration : IPluginConfiguration
     public bool EnableFightTimeline { get; set; }
     public bool TestFightTimeline { get; set; }
     public float FightTimelineOpacity { get; set; } = 1f;
+    public float FightTimelineBackgroundOpacity { get; set; } = 1f;
 
     public void Migrate()
     {
@@ -71,7 +72,10 @@ public sealed class Configuration : IPluginConfiguration
         LeadSeconds = Math.Clamp(LeadSeconds, 0, 60);
         KeepSeconds = Math.Clamp(KeepSeconds, 0, 60);
         TtsText ??= "Use {skills}";
+        if (Version < 15)
+            FightTimelineBackgroundOpacity = FightTimelineOpacity;
         FightTimelineOpacity = Math.Clamp(FightTimelineOpacity, 0.1f, 1f);
+        FightTimelineBackgroundOpacity = Math.Clamp(FightTimelineBackgroundOpacity, 0f, 1f);
         if (SelectedCoTankJob is not ("WAR" or "PLD" or "DRK" or "GNB") || SelectedCoTankJob == SelectedJob)
             SelectedCoTankJob = SelectedJob == "DRK" ? "WAR" : "DRK";
         for (var index = 0; index < 4; index++)
@@ -79,7 +83,7 @@ public sealed class Configuration : IPluginConfiguration
             OverlayTextColor[index] = Math.Clamp(OverlayTextColor[index], 0f, 1f);
             OverlayGlowColor[index] = Math.Clamp(OverlayGlowColor[index], 0f, 1f);
         }
-        Version = 14;
+        Version = 15;
     }
 
     private static string RenameHealerRole(string role) => role switch
