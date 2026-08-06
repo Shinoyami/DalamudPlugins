@@ -24,7 +24,7 @@ internal static class MitigationTimings
             ["Bloodwhetting"] = 4,
             ["Nascent Flash"] = 4,
             ["Holmgang"] = 10,
-            ["Shake It Off"] = 30,
+            ["Shake It Off"] = 15,
 
             // Paladin.
             ["Bulwark"] = 10,
@@ -34,7 +34,7 @@ internal static class MitigationTimings
             ["Holy Sheltron"] = 4,
             ["Intervention"] = 4,
             ["Hallowed Ground"] = 10,
-            ["Divine Veil"] = 30,
+            ["Divine Veil"] = 15,
             ["Passage of Arms"] = 5,
 
             // Dark knight.
