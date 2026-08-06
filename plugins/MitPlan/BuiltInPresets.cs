@@ -1207,8 +1207,8 @@ internal static class BuiltInPresets
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 31507u, TimelineSeconds = 400, Name = "P3 transition", RequiredPhase = "P2 M/F", ResultPhase = "P3 Reconfigured", SuppressSeconds = 20 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 31559u, TimelineSeconds = 600, Name = "P4 transition", RequiredPhase = "P3 Reconfigured", ResultPhase = "P4 Blue Screen", SuppressSeconds = 20 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 31612u, TimelineSeconds = 700, Name = "P5 Delta", RequiredPhase = "P4 Blue Screen", ResultPhase = "P5 Delta", SuppressSeconds = 20 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 32788u, TimelineSeconds = 819, Name = "P5 Sigma", RequiredPhase = "P5 Delta", ResultPhase = "P5 Sigma", SuppressSeconds = 20 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 32789u, TimelineSeconds = 908, Name = "P5 Omega", RequiredPhase = "P5 Sigma", ResultPhase = "P5 Omega", SuppressSeconds = 20 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 32788u, TimelineSeconds = 817, Name = "P5 Sigma", RequiredPhase = "P5 Delta", ResultPhase = "P5 Sigma", SuppressSeconds = 20 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 32789u, TimelineSeconds = 906, Name = "P5 Omega", RequiredPhase = "P5 Sigma", ResultPhase = "P5 Omega", SuppressSeconds = 20 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 32626u, TimelineSeconds = 1100, Name = "P6 Blind Faith", RequiredPhase = "P5 Omega", ResultPhase = "P6 Alpha Omega", SuppressSeconds = 20 },
                 ..CactbotAnchors.For("top"),
             ],
@@ -1579,7 +1579,7 @@ internal static class BuiltInPresets
             SyncTriggers =
             [
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40191u, TimelineSeconds = 168, Name = "P2 Quadruple Slap", RequiredPhase = "P1 Fatebreaker", ResultPhase = "P2 Usurper of Frost", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40265u, TimelineSeconds = 410, Name = "P3 Hell's Judgment", RequiredPhase = "P2 Usurper of Frost", ResultPhase = "P3 Oracle of Darkness", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40265u, TimelineSeconds = 424, Name = "P3 Hell's Judgment", RequiredPhase = "P2 Usurper of Frost", ResultPhase = "P3 Oracle of Darkness", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40246u, TimelineSeconds = 584, Name = "P4 Materialization", RequiredPhase = "P3 Oracle of Darkness", ResultPhase = "P4 Enter the Dragon", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 40306u, TimelineSeconds = 826, Name = "P5 Fulgent Blade", RequiredPhase = "P4 Enter the Dragon", ResultPhase = "P5 Pandora", SuppressSeconds = 0 },
                 ..CactbotAnchors.For("fru"),
@@ -1837,11 +1837,11 @@ internal static class BuiltInPresets
             ],
             SyncTriggers =
             [
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 47803u, TimelineSeconds = 198, Name = "P2 Light of Judgment", RequiredPhase = "P1 Kefka", ResultPhase = "P2 Forsaken Kefka", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 50167u, TimelineSeconds = 382, Name = "P3 Aero III Assault", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49740u, TimelineSeconds = 215, Name = "P2 Ultimate Embrace", RequiredPhase = "P1 Kefka", ResultPhase = "P2 Forsaken Kefka", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 50167u, TimelineSeconds = 384, Name = "P3 Aero III Assault", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49884u, TimelineSeconds = 745, Name = "P4 Kefka Says", RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "P4 Kefka Says", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 50173u, TimelineSeconds = 862, Name = "P5 Kefka transition", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 47936u, TimelineSeconds = 907, Name = "P5 Ultima Repeater", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 50173u, TimelineSeconds = 867, Name = "P5 Kefka transition", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 47936u, TimelineSeconds = 906, Name = "P5 Ultima Repeater", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0 },
                 ..CactbotAnchors.For("dmu"),
             ],
             StateTransitions = [],

@@ -6,6 +6,9 @@ namespace MitPlan;
 // Stable action syncs from cactbot's encounter timelines, translated to MitPlan's phase clocks.
 internal static class CactbotAnchors
 {
+    // Keep a wider acquisition window than cactbot's default so a one-shot
+    // anchor can recover a clock that has already drifted. Matching within the
+    // window still follows cactbot's chronological order.
     private const int DefaultMatchWindowSeconds = 20;
 
     public static IEnumerable<TimelineSyncTrigger> For(string fightId) => (fightId switch
@@ -113,7 +116,7 @@ internal static class CactbotAnchors
     private static readonly Anchor[] DMU =
     [
         new(TimelineSyncEventType.CastStart, 0xC403u, 11, "P1 Kefka"), new(TimelineSyncEventType.Ability, 0xC554u, 169, "P1 Kefka"), new(TimelineSyncEventType.Ability, 0xC555u, 178, "P1 Kefka"),
-        new(TimelineSyncEventType.CastStart, 0xBABBu, 198, "P2 Forsaken Kefka"), new(TimelineSyncEventType.Ability, 0xC554u, 435, "P3 Chaos & Exdeath"), new(TimelineSyncEventType.Ability, 0xBB09u, 478, "P3 Chaos & Exdeath"),
+        new(TimelineSyncEventType.Ability, 0xC554u, 435, "P3 Chaos & Exdeath"), new(TimelineSyncEventType.Ability, 0xBB09u, 478, "P3 Chaos & Exdeath"),
         new(TimelineSyncEventType.Ability, 0xC555u, 484, "P3 Chaos & Exdeath"), new(TimelineSyncEventType.Ability, 0xBB09u, 537, "P3 Chaos & Exdeath"), new(TimelineSyncEventType.Ability, 0xBB09u, 554, "P3 Chaos & Exdeath"),
         new(TimelineSyncEventType.Ability, 0xBB09u, 595, "P3 Chaos & Exdeath"), new(TimelineSyncEventType.Ability, 0xBB09u, 637, "P3 Chaos & Exdeath"), new(TimelineSyncEventType.Ability, 0xC533u, 692, "P3 Chaos & Exdeath"),
         new(TimelineSyncEventType.Ability, 0xC554u, 795, "P4 Kefka Says"), new(TimelineSyncEventType.Ability, 0xC555u, 809, "P4 Kefka Says"), new(TimelineSyncEventType.Ability, 0xC652u, 916, "P5 Kefka Reimagined"),

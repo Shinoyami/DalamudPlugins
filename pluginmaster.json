@@ -33,7 +33,7 @@
     "Author": "Shinoyami",
     "Name": "MitPlan",
     "InternalName": "MitPlan",
-    "AssemblyVersion": "1.2.0.26",
+    "AssemblyVersion": "1.2.0.27",
     "Description": "Displays editable job/role-specific mitigation reminders using default plans based on PF, Ikuya, and NAUR mitigation strategies where available.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -48,11 +48,11 @@
     "IsTestingExclusive": false,
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Shinoyami/DalamudPlugins",
-    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.26/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.26/latest.zip",
-    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.26/latest.zip",
-    "TestingAssemblyVersion": "1.2.0.26",
-    "Changelog": "Prioritizes recorded phase-transition anchors over mechanic sync anchors when the same action ID is reused."
+    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.27/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.27/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.27/latest.zip",
+    "TestingAssemblyVersion": "1.2.0.27",
+    "Changelog": "Corrects DMU, FRU, and TOP phase anchors and consumes repeated action IDs chronologically using current cactbot timeline behavior."
   },
   {
     "Author": "Shinoyami",

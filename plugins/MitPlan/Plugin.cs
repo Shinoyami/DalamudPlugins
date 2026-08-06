@@ -352,9 +352,9 @@ public sealed class Plugin : IDalamudPlugin
             .Where(item => item.MatchWindowSeconds <= 0 || pullStartedAt is not null &&
                            Math.Abs(ElapsedSeconds - item.TimelineSeconds) <= item.MatchWindowSeconds)
             .OrderBy(item => string.IsNullOrEmpty(item.ResultPhase) ? 1 : 0)
-            .ThenBy(item => item.MatchWindowSeconds > 0
-                ? Math.Abs(ElapsedSeconds - item.TimelineSeconds)
-                : int.MaxValue)
+            // cactbot consumes the first active sync in timeline order.  Choosing the
+            // nearest point can skip forward when one action ID repeats rapidly.
+            .ThenBy(item => item.TimelineSeconds)
             .ToList();
 
         foreach (var trigger in candidates)

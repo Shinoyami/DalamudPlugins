@@ -9,7 +9,7 @@ based on PF / Ikuya / NAUR mitigation strategies where available.
 - Includes editable presets for supported Savage and Ultimate fights.
 - Uses PF / Ikuya / NAUR mitigation assignments where a public sheet is available.
 - Supports all requested combat jobs and MT, OT, healer, D1-D4 slots.
-- Automatically starts at combat entry and uses cactbot-derived, one-shot phase and mechanic anchors. Repeated action IDs are matched to the nearest expected point in a 20-second window, so the timer is corrected at the right occurrence without continuous resyncing.
+- Automatically starts at combat entry and uses cactbot-derived, one-shot phase and mechanic anchors. Repeated action IDs are consumed in cactbot's chronological order inside a 20-second recovery window, without continuous resyncing.
 - Keeps live mitigation reminders isolated to the active phase instead of continuously correcting the clock.
 - Collapses repeated mitigation rows within 15 seconds to the final occurrence in that sequence; Panhaima keeps the first occurrence instead.
 - Uses individual effect-duration warning times for catalogued mitigation skills, with a configurable fallback for custom text.
