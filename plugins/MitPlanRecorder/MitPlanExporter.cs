@@ -7,6 +7,7 @@ namespace MitPlanRecorder;
 
 internal static class MitPlanExporter
 {
+    private const int MechanicAnchorMatchWindowSeconds = 20;
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
     public static string BuildJson(RecordingFile recording)
@@ -19,6 +20,10 @@ internal static class MitPlanExporter
         }).ToList();
 
         var triggers = new List<ExportTrigger>();
+        var phaseAnchorIds = recording.Phases
+            .Where(phase => phase.AnchorEventId is not null)
+            .Select(phase => phase.AnchorEventId!)
+            .ToHashSet(StringComparer.Ordinal);
         for (var index = 0; index < recording.Phases.Count; index++)
         {
             var phase = recording.Phases[index];
@@ -39,6 +44,24 @@ internal static class MitPlanExporter
                 RequiredPhase = index == 0 || phase.AllowCheckpointStart ? string.Empty : recording.Phases[index - 1].Name,
                 ResultPhase = index == 0 ? string.Empty : phase.Name,
                 SuppressSeconds = 3,
+                MatchWindowSeconds = index == 0 ? MechanicAnchorMatchWindowSeconds : 0,
+            });
+        }
+
+        foreach (var anchor in recording.Events.Where(item => item.UseAsSyncAnchor && !phaseAnchorIds.Contains(item.Id)))
+        {
+            var phaseName = recording.Phases.ElementAtOrDefault(anchor.PhaseIndex)?.Name ?? "P1";
+            triggers.Add(new ExportTrigger
+            {
+                EventType = anchor.Kind == RecordedEventKind.CastStart ? 0 : 1,
+                EventId = anchor.ActionId,
+                Occurrence = 1,
+                TimelineSeconds = (int)Math.Round(anchor.TimeSeconds),
+                Name = $"{phaseName} {anchor.ActionName}",
+                RequiredPhase = phaseName,
+                ResultPhase = string.Empty,
+                SuppressSeconds = 0,
+                MatchWindowSeconds = MechanicAnchorMatchWindowSeconds,
             });
         }
 
@@ -129,6 +152,7 @@ internal static class MitPlanExporter
         public string RequiredPhase { get; set; } = string.Empty;
         public string ResultPhase { get; set; } = string.Empty;
         public int SuppressSeconds { get; set; }
+        public int MatchWindowSeconds { get; set; }
     }
 
     private sealed class ExportTimelineItem

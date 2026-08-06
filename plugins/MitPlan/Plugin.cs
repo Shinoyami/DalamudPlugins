@@ -351,7 +351,8 @@ public sealed class Plugin : IDalamudPlugin
                            currentPhase == item.RequiredPhase || currentPhase == item.ResultPhase)
             .Where(item => item.MatchWindowSeconds <= 0 || pullStartedAt is not null &&
                            Math.Abs(ElapsedSeconds - item.TimelineSeconds) <= item.MatchWindowSeconds)
-            .OrderBy(item => item.MatchWindowSeconds > 0
+            .OrderBy(item => string.IsNullOrEmpty(item.ResultPhase) ? 1 : 0)
+            .ThenBy(item => item.MatchWindowSeconds > 0
                 ? Math.Abs(ElapsedSeconds - item.TimelineSeconds)
                 : int.MaxValue)
             .ToList();

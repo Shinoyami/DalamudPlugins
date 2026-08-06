@@ -219,10 +219,11 @@ public sealed class Plugin : IDalamudPlugin
             SourceEntityId = actor.EntityId,
             PhaseIndex = phaseIndex,
             Included = !recentCast,
+            UseAsSyncAnchor = !recentCast,
         };
         recording.Events.Add(item);
         var phase = recording.Phases[phaseIndex];
-        if (kind == RecordedEventKind.CastStart && phase.AwaitingAnchor)
+        if (phase.AwaitingAnchor)
         {
             phase.AnchorEventId = item.Id;
             phase.AwaitingAnchor = false;
@@ -361,8 +362,8 @@ public sealed class Plugin : IDalamudPlugin
 
     private void DrawTimeline()
     {
-        ImGui.TextWrapped("Enemy casts are included by default. Resolved abilities that duplicate a cast remain recorded but unchecked. Enter a skill and select its job/role target; semicolons allow multiple instructions with the same target.");
-        if (!ImGui.BeginTable("RecordedEvents", 11, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY, new Vector2(0, 560)))
+        ImGui.TextWrapped("Enemy casts are included by default. Resolved abilities that duplicate a cast remain recorded but unchecked. Sync exports the event as a one-shot 20-second-window clock anchor. Enter a skill and select its job/role target; semicolons allow multiple instructions with the same target.");
+        if (!ImGui.BeginTable("RecordedEvents", 12, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY, new Vector2(0, 560)))
             return;
         ImGui.TableSetupColumn("Use", ImGuiTableColumnFlags.WidthFixed, 38);
         ImGui.TableSetupColumn("Time", ImGuiTableColumnFlags.WidthFixed, 65);
@@ -374,6 +375,7 @@ public sealed class Plugin : IDalamudPlugin
         ImGui.TableSetupColumn("Mitigation", ImGuiTableColumnFlags.WidthStretch, 0.6f);
         ImGui.TableSetupColumn("Job", ImGuiTableColumnFlags.WidthFixed, 80);
         ImGui.TableSetupColumn("Role", ImGuiTableColumnFlags.WidthFixed, 105);
+        ImGui.TableSetupColumn("Sync", ImGuiTableColumnFlags.WidthFixed, 45);
         ImGui.TableSetupColumn("Anchor", ImGuiTableColumnFlags.WidthFixed, 75);
         ImGui.TableHeadersRow();
         foreach (var item in recording.Events)
@@ -394,8 +396,9 @@ public sealed class Plugin : IDalamudPlugin
             ImGui.TableNextColumn(); var mitigation = item.ManualMitigation; ImGui.SetNextItemWidth(-1); if (ImGui.InputText("##mit", ref mitigation, 300)) item.ManualMitigation = mitigation;
             ImGui.TableNextColumn(); DrawStringCombo("##manualjob", Jobs, item.ManualTargetJob, value => item.ManualTargetJob = value);
             ImGui.TableNextColumn(); DrawStringCombo("##manualrole", Roles, item.ManualTargetRole, value => item.ManualTargetRole = value);
+            ImGui.TableNextColumn(); var sync = item.UseAsSyncAnchor; if (ImGui.Checkbox("##sync", ref sync)) item.UseAsSyncAnchor = sync;
             ImGui.TableNextColumn();
-            if (item.Kind == RecordedEventKind.CastStart && phase is not null)
+            if (phase is not null)
             {
                 var selected = phase.AnchorEventId == item.Id;
                 if (ImGui.SmallButton(selected ? "Anchored" : "Anchor"))
@@ -432,7 +435,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void DrawPhases()
     {
-        ImGui.TextWrapped("The first cast after a phase marker becomes its proposed one-shot anchor. You can select a different recorded event here. Checkpoint permits the anchor even when combat starts directly in that phase.");
+        ImGui.TextWrapped("The first recorded cast or ability after a phase marker becomes its proposed phase anchor. You can select a different event here. Checkpoint permits the anchor even when combat starts directly in that phase. Timeline events marked Sync become additional one-shot mechanic anchors.");
         for (var index = 0; index < recording.Phases.Count; index++)
         {
             var phase = recording.Phases[index];
@@ -458,8 +461,7 @@ public sealed class Plugin : IDalamudPlugin
             ImGui.SetNextItemWidth(620);
             if (ImGui.BeginCombo("Anchor", preview))
             {
-                foreach (var item in recording.Events.Where(item => item.PhaseIndex == index &&
-                                                                    item.Kind == RecordedEventKind.CastStart))
+                foreach (var item in recording.Events.Where(item => item.PhaseIndex == index))
                     if (ImGui.Selectable($"{FormatTime(item.TimeSeconds)} {item.Kind} {item.ActionName} (0x{item.ActionId:X})", item.Id == phase.AnchorEventId))
                     {
                         phase.AnchorEventId = item.Id;
@@ -694,7 +696,10 @@ public sealed class Plugin : IDalamudPlugin
     private void DrawExport()
     {
         var assignedEvents = recording.Events.Count(item => item.Assignments.Count > 0 || !string.IsNullOrWhiteSpace(item.ManualMitigation));
-        ImGui.TextWrapped($"The exported plan contains {recording.Phases.Count} phases, {recording.Phases.Count(phase => phase.AnchorEventId is not null)} anchors, and mitigation reminders on {assignedEvents} recorded mechanics. Empty mitigation rows stay in Recorder and do not create alerts in MitPlan.");
+        var phaseAnchors = recording.Phases.Count(phase => phase.AnchorEventId is not null);
+        var mechanicAnchors = recording.Events.Count(item => item.UseAsSyncAnchor &&
+            recording.Phases.All(phase => phase.AnchorEventId != item.Id));
+        ImGui.TextWrapped($"The exported plan contains {recording.Phases.Count} phases, {phaseAnchors} phase anchors, {mechanicAnchors} one-shot mechanic anchors, and mitigation reminders on {assignedEvents} recorded mechanics. Empty mitigation rows stay in Recorder and do not create alerts in MitPlan.");
         if (ImGui.Button("Copy MitPlan JSON to clipboard"))
         {
             ImGui.SetClipboardText(MitPlanExporter.BuildJson(recording));

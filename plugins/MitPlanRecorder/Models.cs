@@ -22,6 +22,7 @@ public sealed class RecordedEvent
     public uint SourceEntityId { get; set; }
     public int PhaseIndex { get; set; }
     public bool Included { get; set; } = true;
+    public bool UseAsSyncAnchor { get; set; } = true;
     public string ManualMitigation { get; set; } = string.Empty;
     public string ManualTargetJob { get; set; } = "Any Job";
     public string ManualTargetRole { get; set; } = "Any Role";
