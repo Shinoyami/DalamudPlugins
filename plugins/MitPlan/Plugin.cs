@@ -1472,11 +1472,17 @@ public sealed class Plugin : IDalamudPlugin
     private string ResolveSkillName(string instruction)
     {
         var cleaned = instruction.Trim().TrimStart('→').Trim();
-        if (cleaned.Equals("Feint", StringComparison.OrdinalIgnoreCase) &&
-            configuration.SelectedJob is "BLM" or "SMN" or "RDM" or "PCT" or "BLU" &&
-            configuration.SelectedRole is "Melee 1 (M1) (D1)" or "Melee 2 (M2) (D2)")
-            return "Addle";
-        if (!cleaned.Contains("Party Mit", StringComparison.OrdinalIgnoreCase))
+        if (cleaned.Equals("Feint", StringComparison.OrdinalIgnoreCase) && IsMeleeSlot(configuration.SelectedRole))
+        {
+            if (IsPhysicalRangedJob(configuration.SelectedJob))
+                return PhysicalRangedMitigation(configuration.SelectedJob);
+            if (IsCasterJob(configuration.SelectedJob))
+                return "Addle";
+        }
+
+        var genericPartyMit = cleaned.Contains("Party Mit", StringComparison.OrdinalIgnoreCase) ||
+                              ContainsAny(cleaned, "Ranged Mit", "Ranged DPS Mit");
+        if (!genericPartyMit)
             return cleaned;
 
         return configuration.SelectedJob switch
@@ -1615,16 +1621,39 @@ public sealed class Plugin : IDalamudPlugin
         "Rampart", TankNinetySecondCooldown(), TankMajorCooldown(), TankShortCooldown(), TankInvulnerability(),
         TankBuddyCooldown(), "Nascent Flash", "Oblation", "Intervention", "Equilibrium", "Aurora");
 
+    private static bool IsPhysicalRangedJob(string job) => job is "BRD" or "MCH" or "DNC";
+
+    private static bool IsCasterJob(string job) => job is "BLM" or "SMN" or "RDM" or "PCT" or "BLU";
+
+    private static bool IsMeleeSlot(string role) =>
+        role is "Melee 1 (M1) (D1)" or "Melee 2 (M2) (D2)";
+
+    private static bool IsRangedSlot(string role) =>
+        role is "Phys Ranged (R1) (D3)" or "Caster (R2) (D4)";
+
+    private static string PhysicalRangedMitigation(string job) => job switch
+    {
+        "BRD" => "Troubadour",
+        "MCH" => "Tactician",
+        "DNC" => "Shield Samba",
+        _ => "Ranged Mit",
+    };
+
     private bool TargetRoleMatchesSelectedPlayer(string targetRole)
     {
         if (targetRole == "Any Role")
             return true;
 
-        // Physical-ranged mitigation ownership follows the selected job rather
-        // than the party slot. A BRD/MCH/DNC assigned to M1, M2, R1, or R2 still
-        // receives the plan's physical-ranged mitigation entries.
-        if (configuration.SelectedJob is "BRD" or "MCH" or "DNC")
-            return NormalizeRole(targetRole) == "Phys Ranged (R1) (D3)";
+        // R1/R2 mitigation ownership follows the selected job category rather
+        // than the exact ranged slot. M1/M2 occupants use that melee assignment;
+        // ResolveSkillName translates its Feint to the selected ranged mitigation.
+        if (IsRangedSlot(configuration.SelectedRole))
+        {
+            if (IsPhysicalRangedJob(configuration.SelectedJob))
+                return NormalizeRole(targetRole) == "Phys Ranged (R1) (D3)";
+            if (IsCasterJob(configuration.SelectedJob))
+                return NormalizeRole(targetRole) == "Caster (R2) (D4)";
+        }
 
         return NormalizeRole(targetRole) == NormalizeRole(configuration.SelectedRole);
     }
