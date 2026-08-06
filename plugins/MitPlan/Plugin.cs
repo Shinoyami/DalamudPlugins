@@ -50,7 +50,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private DateTime? encounterTimelineStartedAt;
     private bool wasInCombat;
-    private bool mainWindowOpen = true;
+    private bool mainWindowOpen;
     private bool encounterSetupWindowOpen;
     private uint lastContentFinderConditionId;
     private string encounterSetupFightId = string.Empty;
@@ -105,7 +105,7 @@ public sealed class Plugin : IDalamudPlugin
 
         commandManager.AddHandler(Command, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Open MitPlan. Arguments: p (player setup), start, stop, reset."
+            HelpMessage = "Open MitPlan. Arguments: p (player setup), tl (toggle fight timeline)."
         });
         framework.Update += OnFrameworkUpdate;
         pluginInterface.UiBuilder.Draw += Draw;
@@ -181,12 +181,9 @@ public sealed class Plugin : IDalamudPlugin
             case "p":
                 RequestEncounterSetupPopup();
                 break;
-            case "start":
-            case "reset":
-                StartTimer(0);
-                break;
-            case "stop":
-                StopTimer();
+            case "tl":
+                configuration.EnableFightTimeline = !configuration.EnableFightTimeline;
+                Save();
                 break;
             default:
                 mainWindowOpen = true;
@@ -198,14 +195,14 @@ public sealed class Plugin : IDalamudPlugin
     {
         CheckForEncounterEntry();
         var inCombat = condition[ConditionFlag.InCombat];
-        if (configuration.AutoStartWithCombat && inCombat && !wasInCombat)
+        if (inCombat && !wasInCombat && IsSelectedFightActive())
         {
             StartTimer(0);
             if (!string.IsNullOrEmpty(currentPhase))
                 syncedPhaseAnchors.Add(currentPhase);
             lastSyncStatus = "Encounter clock synced to combat start.";
         }
-        else if (configuration.AutoStartWithCombat && !inCombat && wasInCombat)
+        else if (!inCombat && wasInCombat)
             StopTimer();
         if (inCombat)
         {
@@ -915,12 +912,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void DrawTimerControls()
     {
-        var autoStart = configuration.AutoStartWithCombat;
-        if (ImGui.Checkbox("Automatically start at combat entry", ref autoStart))
-        {
-            configuration.AutoStartWithCombat = autoStart;
-            Save();
-        }
+        ImGui.TextDisabled("The encounter clock starts automatically when combat begins and stops when combat ends.");
         var showOverlay = configuration.ShowOverlay;
         if (ImGui.Checkbox("Show alert overlay while timer is running", ref showOverlay))
         {
@@ -1028,10 +1020,9 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         ImGui.Separator();
-        var enableFightTimeline = configuration.EnableFightTimeline;
-        if (ImGui.Checkbox("Enable fight timeline", ref enableFightTimeline))
+        if (ImGui.Button(configuration.EnableFightTimeline ? "Close timeline" : "View timeline"))
         {
-            configuration.EnableFightTimeline = enableFightTimeline;
+            configuration.EnableFightTimeline = !configuration.EnableFightTimeline;
             Save();
         }
         ImGui.TextDisabled("Visibility only; the encounter clock and mitigation callouts always remain active in the fight.");
@@ -1053,37 +1044,9 @@ public sealed class Plugin : IDalamudPlugin
             ? "No encounter timeline is installed for this fight."
             : $"{cactbotTimelineEntries} cactbot entries; mitigations are linked to this encounter clock.");
 
-        if (ImGui.Button(encounterTimelineStartedAt is null ? "Start timeline" : "Reset timeline"))
-            StartTimer(0);
-        ImGui.SameLine();
-        if (ImGui.Button("Stop"))
-            StopTimer();
-        ImGui.SameLine();
-        if (ImGui.Button("-1 sec") && encounterTimelineStartedAt is not null)
-        {
-            encounterTimelineStartedAt = encounterTimelineStartedAt.Value.AddSeconds(1);
-        }
-        ImGui.SameLine();
-        if (ImGui.Button("+1 sec") && encounterTimelineStartedAt is not null)
-        {
-            encounterTimelineStartedAt = encounterTimelineStartedAt.Value.AddSeconds(-1);
-        }
         ImGui.Text($"Encounter time: {FormatTime(ElapsedSeconds)}");
         if (!string.IsNullOrWhiteSpace(lastSyncStatus))
             ImGui.TextColored(new Vector4(0.35f, 0.9f, 0.45f, 1f), lastSyncStatus);
-
-        if (SelectedFight.Phases.Count > 0)
-        {
-            ImGui.Text("Phase sync:");
-            foreach (var phase in SelectedFight.Phases)
-            {
-                if (ImGui.Button($"{phase.Name}##phase-{phase.StartSeconds}"))
-                    StartTimer(phase.StartSeconds);
-                ImGui.SameLine();
-            }
-            ImGui.NewLine();
-            ImGui.TextDisabled("Click as the named phase begins to remove timing drift from earlier phase pushes.");
-        }
     }
 
     private void DrawFightTimelineOverlay()

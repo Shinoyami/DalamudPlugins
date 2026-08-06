@@ -44,7 +44,7 @@ public sealed class Plugin : IDalamudPlugin
     private DateTime? pullStartedAt;
     private bool currentPhaseEnded;
     private bool wasInCombat;
-    private bool windowOpen = true;
+    private bool windowOpen;
     private string status = "Waiting for combat.";
 
     public Plugin(IDalamudPluginInterface pluginInterface, IFramework framework, ICondition condition,

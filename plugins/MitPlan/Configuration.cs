@@ -12,7 +12,6 @@ public sealed class Configuration : IPluginConfiguration
     public string SelectedJob { get; set; } = "WAR";
     public string SelectedRole { get; set; } = "MT";
     public string SelectedCoTankJob { get; set; } = "DRK";
-    public bool AutoStartWithCombat { get; set; } = true;
     public bool ShowOverlay { get; set; } = true;
     public float OverlayOpacity { get; set; } = 1f;
     public float OverlayBackgroundOpacity { get; set; } = 1f;
