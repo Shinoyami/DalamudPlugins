@@ -33,7 +33,7 @@
     "Author": "Shinoyami",
     "Name": "MitPlan",
     "InternalName": "MitPlan",
-    "AssemblyVersion": "1.2.0.31",
+    "AssemblyVersion": "1.2.0.32",
     "Description": "Displays editable job/role-specific mitigation reminders using default plans based on PF, Ikuya, and NAUR mitigation strategies where available.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -48,11 +48,11 @@
     "IsTestingExclusive": false,
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Shinoyami/DalamudPlugins",
-    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.31/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.31/latest.zip",
-    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.31/latest.zip",
-    "TestingAssemblyVersion": "1.2.0.31",
-    "Changelog": "Locks P1 to combat start at 00:00, synchronizes each later phase only once from its opening anchor, corrects DMU and UWU phase timing, and adds a full debug timeline simulation with real mitigation callouts."
+    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.32/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.32/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.2.0.32/latest.zip",
+    "TestingAssemblyVersion": "1.2.0.32",
+    "Changelog": "Restores prominent Test mitigation alert and Test timeline controls for positioning overlays and previewing opacity, colors, icons, and timeline styling outside combat."
   },
   {
     "Author": "Shinoyami",

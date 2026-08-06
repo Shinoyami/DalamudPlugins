@@ -533,7 +533,7 @@ public sealed class Plugin : IDalamudPlugin
         if (mainWindowOpen)
             DrawMainWindow();
         DrawEncounterSetupWindow();
-        if (configuration.ShowOverlay && (configuration.TestOverlay || debugTimelineRunning ||
+        if (configuration.TestOverlay || configuration.ShowOverlay && (debugTimelineRunning ||
             encounterTimelineStartedAt is not null && condition[ConditionFlag.InCombat] && IsSelectedFightActive()))
             DrawOverlay();
         if ((configuration.EnableFightTimeline && (debugTimelineRunning || encounterTimelineStartedAt is not null &&
@@ -1013,6 +1013,38 @@ public sealed class Plugin : IDalamudPlugin
                     : "Simulate the selected fight and mitigation callouts without entering the duty.");
         }
         ImGui.TextDisabled("Debug mode uses the selected job, role, mitigation timing, overlay, and audio settings.");
+
+        ImGui.Separator();
+        ImGui.TextUnformatted("Overlay positioning tests");
+        if (ImGui.Button("Test mitigation alert"))
+        {
+            if (debugTimelineRunning)
+                StopDebugTimeline();
+            configuration.TestOverlay = !configuration.TestOverlay;
+            Save();
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("Test timeline"))
+        {
+            if (debugTimelineRunning)
+                StopDebugTimeline();
+            configuration.TestFightTimeline = !configuration.TestFightTimeline;
+            Save();
+        }
+        if (configuration.TestOverlay || configuration.TestFightTimeline)
+        {
+            var activeTests = configuration.TestOverlay && configuration.TestFightTimeline
+                ? "Mitigation alert and timeline tests active"
+                : configuration.TestOverlay
+                    ? "Mitigation alert test active"
+                    : "Timeline test active";
+            ImGui.TextColored(new Vector4(1f, 0.78f, 0.2f, 1f), $"{activeTests}; click again to close.");
+        }
+        else
+        {
+            ImGui.TextDisabled("Open a preview, then drag its overlay anywhere on the screen.");
+        }
+
         var showOverlay = configuration.ShowOverlay;
         if (ImGui.Checkbox("Show alert overlay while timer is running", ref showOverlay))
         {
@@ -1112,13 +1144,6 @@ public sealed class Plugin : IDalamudPlugin
             configuration.AlertDisplay = (AlertDisplayMode)displayMode;
             Save();
         }
-        var testOverlay = configuration.TestOverlay;
-        if (ImGui.Checkbox("Test overlay (move it anywhere)", ref testOverlay))
-        {
-            configuration.TestOverlay = testOverlay;
-            Save();
-        }
-
         ImGui.Separator();
         if (ImGui.Button(configuration.EnableFightTimeline ? "Close timeline" : "View timeline"))
         {
@@ -1131,12 +1156,6 @@ public sealed class Plugin : IDalamudPlugin
         if (ImGui.SliderInt("Timeline opacity", ref fightTimelineOpacityPercent, 10, 100, "%d%%"))
         {
             configuration.FightTimelineOpacity = fightTimelineOpacityPercent / 100f;
-            Save();
-        }
-        var testFightTimeline = configuration.TestFightTimeline;
-        if (ImGui.Checkbox("Test timeline (move it anywhere)", ref testFightTimeline))
-        {
-            configuration.TestFightTimeline = testFightTimeline;
             Save();
         }
         var cactbotTimelineEntries = SelectedFight.EncounterTimeline.Count(item => item.Id.StartsWith("cactbot-", StringComparison.Ordinal));
