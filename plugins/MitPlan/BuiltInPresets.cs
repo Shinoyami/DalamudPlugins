@@ -126,13 +126,13 @@ internal static class BuiltInPresets
             Category = "Savage",
             ContentFinderConditionId = 1075u,
             IsBuiltIn = true,
-            PresetRevision = 4,
+            PresetRevision = 5,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1FmG8NL2DybieW9FuZrPF7w6iABFtGVEzwwoFPCjslZc/edit?usp=sharing",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with one-shot phase anchoring.",
             Phases =
             [
                 new FightPhase { Name = "P1 Lindwurm", Key = "P1 Lindwurm", StartSeconds = 0 },
-                new FightPhase { Name = "P2 Lindwurm", Key = "P2 Lindwurm", StartSeconds = 600 },
+                new FightPhase { Name = "P2 Lindwurm", Key = "P2 Lindwurm", StartSeconds = 600, EncounterTimelineStartSeconds = 2998.7f },
             ],
             SyncTriggers =
             [
@@ -319,16 +319,16 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 280u,
             IsBuiltIn = true,
-            PresetRevision = 4,
+            PresetRevision = 5,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1t4gHDNxppxK1rdYIjZyAEabNUREq5lK-KQLwuV3W77A/edit?gid=0#gid=0",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with one-shot phase anchoring.",
             Phases =
             [
                 new FightPhase { Name = "P1 Twintania", Key = "P1 Twintania", StartSeconds = 0 },
-                new FightPhase { Name = "P2 Nael", Key = "P2 Nael", StartSeconds = 200 },
-                new FightPhase { Name = "P3 Bahamut Prime", Key = "P3 Bahamut Prime", StartSeconds = 500 },
-                new FightPhase { Name = "P4 Adds", Key = "P4 Adds", StartSeconds = 843 },
-                new FightPhase { Name = "P5 Golden Bahamut", Key = "P5 Golden Bahamut", StartSeconds = 1200 },
+                new FightPhase { Name = "P2 Nael", Key = "P2 Nael", StartSeconds = 200, EncounterTimelineStartSeconds = 407.5f },
+                new FightPhase { Name = "P3 Bahamut Prime", Key = "P3 Bahamut Prime", StartSeconds = 500, EncounterTimelineStartSeconds = 1005.3f },
+                new FightPhase { Name = "P4 Adds", Key = "P4 Adds", StartSeconds = 843, EncounterTimelineStartSeconds = 1503.6f },
+                new FightPhase { Name = "P5 Golden Bahamut", Key = "P5 Golden Bahamut", StartSeconds = 1200, EncounterTimelineStartSeconds = 2316.2f },
             ],
             SyncTriggers =
             [
@@ -518,7 +518,7 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 539u,
             IsBuiltIn = true,
-            PresetRevision = 6,
+            PresetRevision = 7,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1V-FXFOW8pj87DtqT4KpKSbu3AZYI4diSjH1F-FyNt_o/edit?gid=58668446#gid=58668446",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with one-shot phase anchoring.",
             Phases =
@@ -708,14 +708,14 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 694u,
             IsBuiltIn = true,
-            PresetRevision = 3,
+            PresetRevision = 4,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1A58RflNeNq9mesuvSEcQzIvQ3MwOGyvPRi5khNACrc8/edit?gid=1511755464#gid=1511755464",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with one-shot phase anchoring.",
             Phases =
             [
                 new FightPhase { Name = "P1 Living Liquid", Key = "P1 Living Liquid", StartSeconds = 0 },
-                new FightPhase { Name = "P2 BJCC", Key = "P2 BJCC", StartSeconds = 220 },
-                new FightPhase { Name = "P3 Alexander Prime", Key = "P3 Alexander Prime", StartSeconds = 500 },
+                new FightPhase { Name = "P2 BJCC", Key = "P2 BJCC", StartSeconds = 220, EncounterTimelineStartSeconds = 220 },
+                new FightPhase { Name = "P3 Alexander Prime", Key = "P3 Alexander Prime", StartSeconds = 500, EncounterTimelineStartSeconds = 500 },
                 new FightPhase { Name = "P4 Perfect Alexander", Key = "P4 Perfect Alexander", StartSeconds = 900 },
             ],
             SyncTriggers =
@@ -954,19 +954,19 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 788u,
             IsBuiltIn = true,
-            PresetRevision = 6,
+            PresetRevision = 7,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1YJX933Fe6MeNv06QVQfRUI3oJVfCvm4OqOyLCSjcAJk/edit?gid=1960553822#gid=1960553822",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with one-shot phase and checkpoint anchoring.",
             Phases =
             [
                 new FightPhase { Name = "P1 Vault Knights", Key = "P1 Vault Knights", StartSeconds = 0 },
-                new FightPhase { Name = "P2 Thordan", Key = "P2 Thordan", StartSeconds = 170 },
-                new FightPhase { Name = "P3 Nidhogg", Key = "P3 Nidhogg", StartSeconds = 380 },
-                new FightPhase { Name = "P4 Eyes", Key = "P4 Eyes", StartSeconds = 520 },
+                new FightPhase { Name = "P2 Thordan", Key = "P2 Thordan", StartSeconds = 170, EncounterTimelineStartSeconds = 542 },
+                new FightPhase { Name = "P3 Nidhogg", Key = "P3 Nidhogg", StartSeconds = 380, EncounterTimelineStartSeconds = 993 },
+                new FightPhase { Name = "P4 Eyes", Key = "P4 Eyes", StartSeconds = 520, EncounterTimelineStartSeconds = 1485 },
                 new FightPhase { Name = "Rewind", Key = "Rewind", StartSeconds = 620 },
-                new FightPhase { Name = "P5 Dark Thordan", Key = "P5 Dark Thordan", StartSeconds = 700 },
+                new FightPhase { Name = "P5 Dark Thordan", Key = "P5 Dark Thordan", StartSeconds = 700, EncounterTimelineStartSeconds = 2981 },
                 new FightPhase { Name = "P6 Double Dragons", Key = "P6 Double Dragons", StartSeconds = 970 },
-                new FightPhase { Name = "P7 Dragon King", Key = "P7 Dragon King", StartSeconds = 1190 },
+                new FightPhase { Name = "P7 Dragon King", Key = "P7 Dragon King", StartSeconds = 1190, EncounterTimelineStartSeconds = 3973 },
             ],
             SyncTriggers =
             [
@@ -1187,13 +1187,13 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 908u,
             IsBuiltIn = true,
-            PresetRevision = 4,
+            PresetRevision = 5,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1G0q0PHNFAFbJqE2ftparUyAcqCY-Dw9Hlzh6PpjRCKc/edit?gid=223515716#gid=223515716",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with one-shot phase anchoring.",
             Phases =
             [
                 new FightPhase { Name = "P1 Omega", Key = "P1 Omega", StartSeconds = 0 },
-                new FightPhase { Name = "P2 M/F", Key = "P2 M/F", StartSeconds = 200 },
+                new FightPhase { Name = "P2 M/F", Key = "P2 M/F", StartSeconds = 200, EncounterTimelineStartSeconds = 200.4f },
                 new FightPhase { Name = "P3 Reconfigured", Key = "P3 Reconfigured", StartSeconds = 400 },
                 new FightPhase { Name = "P4 Blue Screen", Key = "P4 Blue Screen", StartSeconds = 600 },
                 new FightPhase { Name = "P5 Delta", Key = "P5 Delta", StartSeconds = 700 },
@@ -1565,16 +1565,16 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 1006u,
             IsBuiltIn = true,
-            PresetRevision = 5,
+            PresetRevision = 6,
             SourceUrl = "https://docs.google.com/spreadsheets/d/1M1LHe4mpb1lyxkLWJxrDwe_JH897nickG3XLTtwnI90/edit?gid=58668446#gid=58668446",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with one-shot phase anchoring.",
             Phases =
             [
                 new FightPhase { Name = "P1 Fatebreaker", Key = "P1 Fatebreaker", StartSeconds = 0 },
-                new FightPhase { Name = "P2 Usurper of Frost", Key = "P2 Usurper of Frost", StartSeconds = 157 },
-                new FightPhase { Name = "P3 Oracle of Darkness", Key = "P3 Oracle of Darkness", StartSeconds = 410 },
-                new FightPhase { Name = "P4 Enter the Dragon", Key = "P4 Enter the Dragon", StartSeconds = 584 },
-                new FightPhase { Name = "P5 Pandora", Key = "P5 Pandora", StartSeconds = 826 },
+                new FightPhase { Name = "P2 Usurper of Frost", Key = "P2 Usurper of Frost", StartSeconds = 157, EncounterTimelineStartSeconds = 199.3f },
+                new FightPhase { Name = "P3 Oracle of Darkness", Key = "P3 Oracle of Darkness", StartSeconds = 410, EncounterTimelineStartSeconds = 499.3f },
+                new FightPhase { Name = "P4 Enter the Dragon", Key = "P4 Enter the Dragon", StartSeconds = 584, EncounterTimelineStartSeconds = 686.3f },
+                new FightPhase { Name = "P5 Pandora", Key = "P5 Pandora", StartSeconds = 826, EncounterTimelineStartSeconds = 1034.8f },
             ],
             SyncTriggers =
             [

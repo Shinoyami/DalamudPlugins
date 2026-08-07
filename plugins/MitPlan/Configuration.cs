@@ -155,7 +155,7 @@ public sealed class FightPhase
     public string Name { get; set; } = string.Empty;
     public string Key { get; set; } = string.Empty;
     public int StartSeconds { get; set; }
-    public int EncounterTimelineStartSeconds { get; set; }
+    public float EncounterTimelineStartSeconds { get; set; }
 }
 
 public sealed class EncounterTimelineEvent
