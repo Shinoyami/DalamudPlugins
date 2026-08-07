@@ -14,6 +14,9 @@ public sealed class Configuration : IPluginConfiguration
 
     public void Migrate()
     {
+        // Resolved action effects are the timeline clock source. Cast starts are retained
+        // separately for phase and mechanic synchronization.
+        RecordResolvedAbilities = true;
         PhaseDowntimeSeconds = Math.Clamp(PhaseDowntimeSeconds, 0.5f, 30f);
         LastCsvDirectory ??= string.Empty;
         Version = 1;

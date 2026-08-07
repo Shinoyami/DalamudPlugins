@@ -58,7 +58,7 @@
     "Author": "Shinoyami",
     "Name": "MitPlan Recorder",
     "InternalName": "MitPlanRecorder",
-    "AssemblyVersion": "0.1.0.4",
+    "AssemblyVersion": "0.1.0.5",
     "Description": "Records encounter casts and abilities, provides editable phase anchors and mitigation assignments, imports mitigation CSV files, and sends reviewed plans directly to MitPlan.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -73,11 +73,11 @@
     "IsTestingExclusive": false,
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Shinoyami/DalamudPlugins",
-    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlanRecorder-v0.1.0.4/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlanRecorder-v0.1.0.4/latest.zip",
-    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlanRecorder-v0.1.0.4/latest.zip",
-    "TestingAssemblyVersion": "0.1.0.4",
-    "Changelog": "Keeps the Recorder window closed when the plugin loads so it opens only when requested manually."
+    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlanRecorder-v0.1.0.5/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlanRecorder-v0.1.0.5/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlanRecorder-v0.1.0.5/latest.zip",
+    "TestingAssemblyVersion": "0.1.0.5",
+    "Changelog": "Records timeline and mitigation rows at resolved mechanic-hit times while retaining cast starts as synchronization anchors."
   },
   {
     "Author": "attick, daemitus, Khayle, Shinoyami",

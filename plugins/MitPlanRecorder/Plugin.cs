@@ -180,18 +180,18 @@ public sealed class Plugin : IDalamudPlugin
     {
         while (actionEffectWatcher.TryDequeue(out var resolved))
         {
-            if (!configuration.RecordResolvedAbilities)
-                continue;
             var actor = objectTable.OfType<IBattleNpc>().FirstOrDefault(item => item.EntityId == resolved.CasterEntityId);
             if (actor is null)
                 continue;
-            RecordEvent(RecordedEventKind.Ability, resolved.ActionId, actor);
+            RecordEvent(RecordedEventKind.Ability, resolved.ActionId, actor, resolved.OccurredAtUtc);
         }
     }
 
-    private void RecordEvent(RecordedEventKind kind, uint actionId, IBattleNpc actor)
+    private void RecordEvent(RecordedEventKind kind, uint actionId, IBattleNpc actor, DateTime? occurredAtUtc = null)
     {
-        var elapsed = ElapsedSeconds;
+        var elapsed = occurredAtUtc is not null && pullStartedAt is not null
+            ? Math.Max(0, (occurredAtUtc.Value - pullStartedAt.Value).TotalSeconds)
+            : ElapsedSeconds;
         if (currentPhaseEnded)
         {
             var sameActorReturned = currentPhaseActorEntityIds.Contains(actor.EntityId);
@@ -218,8 +218,10 @@ public sealed class Plugin : IDalamudPlugin
             SourceBaseId = actor.BaseId,
             SourceEntityId = actor.EntityId,
             PhaseIndex = phaseIndex,
-            Included = !recentCast,
-            UseAsSyncAnchor = !recentCast,
+            // Mitigation rows use the action-effect timestamp when the mechanic resolves.
+            // Cast starts remain available for synchronization and manual inclusion.
+            Included = kind == RecordedEventKind.Ability,
+            UseAsSyncAnchor = kind == RecordedEventKind.CastStart || !recentCast,
         };
         recording.Events.Add(item);
         var phase = recording.Phases[phaseIndex];
@@ -331,11 +333,8 @@ public sealed class Plugin : IDalamudPlugin
     {
         var auto = configuration.AutoRecord;
         if (ImGui.Checkbox("Record automatically in combat", ref auto)) { configuration.AutoRecord = auto; SaveConfiguration(); }
-        var recordAbilities = configuration.RecordResolvedAbilities;
         ImGui.SameLine();
-        if (ImGui.Checkbox("Record resolved abilities", ref recordAbilities)) { configuration.RecordResolvedAbilities = recordAbilities; SaveConfiguration(); }
         var autoPhases = configuration.AutoCreatePhaseCandidates;
-        ImGui.SameLine();
         if (ImGui.Checkbox("Propose phases after downtime", ref autoPhases)) { configuration.AutoCreatePhaseCandidates = autoPhases; SaveConfiguration(); }
         ImGui.SameLine();
         if (pullStartedAt is null)
@@ -357,12 +356,13 @@ public sealed class Plugin : IDalamudPlugin
         if (ImGui.Combo("Category", ref category, Categories, Categories.Length)) recording.Category = Categories[category];
         ImGui.Text($"CFC ID: {recording.ContentFinderConditionId} | Territory: {recording.TerritoryType} | Events: {recording.Events.Count}");
         ImGui.TextColored(new Vector4(0.35f, 0.85f, 1f, 1f), status);
+        ImGui.TextWrapped("Timeline timing is recorded from resolved action effects, when mechanics actually hit. Cast starts are retained for synchronization anchors.");
         ImGui.Separator();
     }
 
     private void DrawTimeline()
     {
-        ImGui.TextWrapped("Enemy casts are included by default. Resolved abilities that duplicate a cast remain recorded but unchecked. Sync exports the event as a one-shot 20-second-window clock anchor. Enter a skill and select its job/role target; semicolons allow multiple instructions with the same target.");
+        ImGui.TextWrapped("Resolved abilities are included by default at the moment the mechanic hits. Cast starts remain recorded but unchecked for timeline use, and can be selected as phase or one-shot synchronization anchors. Enter a skill and select its job/role target; semicolons allow multiple instructions with the same target.");
         if (!ImGui.BeginTable("RecordedEvents", 12, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY, new Vector2(0, 560)))
             return;
         ImGui.TableSetupColumn("Use", ImGuiTableColumnFlags.WidthFixed, 38);

@@ -89,7 +89,9 @@ internal static class MitPlanExporter
 
         var id = Slug(recording.FightName);
         var encounterTimeline = recording.Events
-            .Where(item => item.Included)
+            // Keep synchronization-only cast rows in the encounter data even though
+            // mitigation and CSV rows default to resolved action effects.
+            .Where(item => item.Included || item.UseAsSyncAnchor || phaseAnchorIds.Contains(item.Id))
             .OrderBy(item => item.TimeSeconds)
             .Select(item => new ExportEncounterTimelineEvent
             {

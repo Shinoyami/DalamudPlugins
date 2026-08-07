@@ -12,7 +12,7 @@ namespace MitPlanRecorder;
 internal sealed unsafe class ActionEffectWatcher : IDisposable
 {
     private readonly Hook<Delegates.Receive> hook;
-    private readonly ConcurrentQueue<(uint ActionId, uint CasterEntityId)> resolvedActions = new();
+    private readonly ConcurrentQueue<ResolvedAction> resolvedActions = new();
 
     public ActionEffectWatcher(IGameInteropProvider interop)
     {
@@ -20,7 +20,7 @@ internal sealed unsafe class ActionEffectWatcher : IDisposable
         hook.Enable();
     }
 
-    public bool TryDequeue(out (uint ActionId, uint CasterEntityId) action) => resolvedActions.TryDequeue(out action);
+    public bool TryDequeue(out ResolvedAction action) => resolvedActions.TryDequeue(out action);
 
     public void Clear()
     {
@@ -32,8 +32,10 @@ internal sealed unsafe class ActionEffectWatcher : IDisposable
     {
         hook.Original(casterEntityId, caster, targetPosition, header, effects, targetEntityIds);
         if (header != null && header->ActionId != 0)
-            resolvedActions.Enqueue((header->ActionId, casterEntityId));
+            resolvedActions.Enqueue(new ResolvedAction(header->ActionId, casterEntityId, DateTime.UtcNow));
     }
 
     public void Dispose() => hook.Dispose();
 }
+
+internal readonly record struct ResolvedAction(uint ActionId, uint CasterEntityId, DateTime OccurredAtUtc);
