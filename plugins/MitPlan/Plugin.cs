@@ -1172,7 +1172,8 @@ public sealed class Plugin : IDalamudPlugin
             }
             : SelectedFight.EncounterTimeline
                 .Where(item => string.IsNullOrEmpty(item.Phase) || item.Phase == currentPhase)
-                .Select(item => (Item: item, Time: EncounterTimelineLinker.EventTime(SelectedFight, item)))
+                .Select(item => (Item: item, Time: EncounterTimelineLinker.EventTime(SelectedFight, item) +
+                                                  SelectedFight.ScheduleOffsetSeconds))
                 .Where(entry => entry.Time - elapsed is >= -3 and <= 30)
                 .OrderBy(entry => entry.Time)
                 .Take(8)
@@ -1673,7 +1674,8 @@ public sealed class Plugin : IDalamudPlugin
     private float MitigationTime(TimelineItem item)
     {
         var linked = LinkedEncounterEvent(item);
-        return linked is null ? item.TimeSeconds : EncounterTimelineLinker.EventTime(SelectedFight, linked);
+        return (linked is null ? item.TimeSeconds : EncounterTimelineLinker.EventTime(SelectedFight, linked)) +
+               SelectedFight.ScheduleOffsetSeconds;
     }
 
     private string TimelinePhase(TimelineItem item) => EncounterTimelineLinker.TimelinePhase(SelectedFight, item);

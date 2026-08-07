@@ -75,18 +75,23 @@ internal static class EncounterTimelines
         return encoded.ToDictionary(
             pair => pair.Key,
             pair => pair.Value.Select((item, index) => new EncounterTimelineEvent
-            {
-                Id = $"timeline-{pair.Key}-{index}",
-                TimeSeconds = item.Time,
-                SyncToSeconds = item.SyncTo,
-                DurationSeconds = item.Duration,
-                Name = item.Name,
-                Phase = item.Phase,
-                EventType = item.EventType,
-                EventIds = item.EventIds ?? [],
-                WindowBeforeSeconds = item.WindowBefore,
-                WindowAfterSeconds = item.WindowAfter,
-            }).ToList());
+                {
+                    Id = $"timeline-{pair.Key}-{index}",
+                    TimeSeconds = item.Time,
+                    SyncToSeconds = item.SyncTo,
+                    DurationSeconds = item.Duration,
+                    Name = item.Name,
+                    Phase = item.Phase,
+                    EventType = item.EventType,
+                    EventIds = item.EventIds ?? [],
+                    WindowBeforeSeconds = item.WindowBefore,
+                    WindowAfterSeconds = item.WindowAfter,
+                })
+                // This is an internal phase-setup action, not a visible encounter mechanic.
+                .Where(item => pair.Key != "dmu" ||
+                               !item.EventIds.Contains(50167u) &&
+                               !(item.Phase == "P3 Chaos & Exdeath" && item.Name == "Thunder III"))
+                .ToList());
     }
 
     private sealed class EncodedEvent

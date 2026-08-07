@@ -1824,7 +1824,8 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 1094u,
             IsBuiltIn = true,
-            PresetRevision = 8,
+            PresetRevision = 9,
+            ScheduleOffsetSeconds = 1,
             SourceUrl = "https://docs.google.com/spreadsheets/d/10C3ytfH3irHqkb45rchIq5oqdAs-v_OKTj57M-Twi3k/edit?usp=sharing",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with one-shot phase anchoring.",
             Phases =
@@ -1832,14 +1833,16 @@ internal static class BuiltInPresets
                 new FightPhase { Name = "P1 Kefka", Key = "P1 Kefka", StartSeconds = 0 },
                 new FightPhase { Name = "P2 Forsaken Kefka", Key = "P2 Forsaken Kefka", StartSeconds = 197 },
                 new FightPhase { Name = "P3 Chaos & Exdeath", Key = "P3 Chaos & Exdeath", StartSeconds = 382 },
-                new FightPhase { Name = "P4 Kefka Says", Key = "P4 Kefka Says", StartSeconds = 734 },
+                // The source timeline intentionally places the first P4 cast at 995 because the
+                // preceding boss-kill downtime varies. Map that cast to MitPlan's 12:25 anchor.
+                new FightPhase { Name = "P4 Kefka Says", Key = "P4 Kefka Says", StartSeconds = 734, EncounterTimelineStartSeconds = 984 },
                 new FightPhase { Name = "P5 Kefka Reimagined", Key = "P5 Kefka Reimagined", StartSeconds = 862 },
             ],
             SyncTriggers =
             [
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49740u, TimelineSeconds = 215, Name = "P2 Ultimate Embrace", RequiredPhase = "P1 Kefka", ResultPhase = "P2 Forsaken Kefka", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49890u, TimelineSeconds = 425.5f, Name = "P3 first The Decisive Battle (Chaos)", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49891u, TimelineSeconds = 425.5f, Name = "P3 first The Decisive Battle (Exdeath)", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49890u, TimelineSeconds = 427, Name = "P3 first The Decisive Battle (Chaos)", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49891u, TimelineSeconds = 427, Name = "P3 first The Decisive Battle (Exdeath)", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49884u, TimelineSeconds = 745, Name = "P4 Kefka Says", RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "P4 Kefka Says", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 50173u, TimelineSeconds = 867, Name = "P5 Kefka transition", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0, PhaseOnly = true },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 47936u, TimelineSeconds = 906, Name = "P5 Ultima Repeater", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0 },
@@ -2481,6 +2484,8 @@ internal static class BuiltInPresets
         foreach (var preset in CreateAll())
         {
             preset.EncounterTimeline = EncounterTimelines.For(preset.Id).ToList();
+            if (preset.Id == "dmu")
+                DmuCompletionTimings.Link(preset);
             var existing = configuration.Fights.FirstOrDefault(fight => fight.Id == preset.Id);
             if (existing is null)
                 configuration.Fights.Add(preset);
@@ -2489,6 +2494,7 @@ internal static class BuiltInPresets
                 existing.Category = preset.Category;
                 existing.ContentFinderConditionId = preset.ContentFinderConditionId;
                 existing.IsBuiltIn = true;
+                existing.ScheduleOffsetSeconds = preset.ScheduleOffsetSeconds;
                 existing.SourceUrl = preset.SourceUrl;
                 existing.PresetStatus = preset.PresetStatus;
                 existing.Phases = preset.Phases;
