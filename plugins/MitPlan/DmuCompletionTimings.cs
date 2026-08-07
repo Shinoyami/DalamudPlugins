@@ -40,8 +40,10 @@ internal static class DmuCompletionTimings
     {
         foreach (var item in fight.Timeline)
         {
-            if (!CompletionTimes.TryGetValue(item.TimeSeconds, out var completionTime))
+            var tankThunder = TankThunderTiming(item);
+            if (tankThunder is null && !CompletionTimes.TryGetValue(item.TimeSeconds, out _))
                 continue;
+            var completionTime = tankThunder?.Time ?? CompletionTimes[item.TimeSeconds];
             var phase = PhaseFor(fight, item);
             if (phase is null)
                 continue;
@@ -49,7 +51,9 @@ internal static class DmuCompletionTimings
                 ? phase.EncounterTimelineStartSeconds
                 : EncounterTimelines.PhaseStart(fight.Id, phase.Key) ?? phase.StartSeconds;
             var rawCompletionTime = rawPhaseStart + completionTime - phase.StartSeconds;
-            var id = $"completion-dmu-{item.TimeSeconds}";
+            var id = tankThunder is null
+                ? $"completion-dmu-{item.TimeSeconds}"
+                : $"completion-dmu-thunder-{item.TimeSeconds}-{item.TargetRole.ToLowerInvariant()}-hit{tankThunder.Value.Hit}";
             if (fight.EncounterTimeline.All(candidate => candidate.Id != id))
             {
                 fight.EncounterTimeline.Add(new EncounterTimelineEvent
@@ -63,6 +67,25 @@ internal static class DmuCompletionTimings
             }
             item.EncounterEventId = id;
         }
+    }
+
+    private static (float Time, int Hit)? TankThunderTiming(TimelineItem item)
+    {
+        if (!item.Note.Equals("Tank personal plan: Thunder III", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        return (item.TimeSeconds, item.TargetRole) switch
+        {
+            (479, "MT") => (476.3f, 1),
+            (479, "OT") => (479.3f, 2),
+            (536, "MT") => (537.7f, 2),
+            (554, "OT") => (551.8f, 1),
+            (554, "MT") => (554.8f, 2),
+            (595, "OT") => (596.4f, 2),
+            (637, "OT") => (634.7f, 1),
+            (637, "MT") => (637.7f, 2),
+            _ => null,
+        };
     }
 
     private static FightPhase? PhaseFor(FightPlan fight, TimelineItem item)

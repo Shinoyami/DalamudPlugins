@@ -21,7 +21,6 @@ namespace MitPlan;
 public sealed class Plugin : IDalamudPlugin
 {
     private const string Command = "/mitplan";
-    private const int DuplicateSequenceWindowSeconds = 15;
 
     internal static readonly string[] Jobs =
     [
@@ -1700,7 +1699,8 @@ public sealed class Plugin : IDalamudPlugin
             foreach (var alert in group)
             {
                 if (lastInCluster is not null &&
-                    MitigationTime(alert.Item) - MitigationTime(lastInCluster.Item) > DuplicateSequenceWindowSeconds)
+                    MitigationTime(alert.Item) - MitigationTime(lastInCluster.Item) >
+                    MitigationTimings.LeadSeconds(lastInCluster.Skill, configuration.LeadSeconds))
                 {
                     retained.Add(KeepFirstRepeatedOccurrence(lastInCluster.Skill)
                         ? firstInCluster!
