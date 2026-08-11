@@ -83,7 +83,7 @@
     "Author": "attick, daemitus, Khayle, Shinoyami",
     "Name": "XIV Combo Expanded (Alt)",
     "InternalName": "XIVComboExpanded",
-    "AssemblyVersion": "2.0.6.3",
+    "AssemblyVersion": "2.0.6.4",
     "Description": "Alternative XIV Combo Expanded build with Sage options for Phlegma burst handling and automatic Lucid Dreaming from the Dosis button at 7000 MP or lower.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -99,10 +99,10 @@
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Shinoyami/XIVComboExpanded",
     "IconUrl": "https://raw.githubusercontent.com/Shinoyami/XIVComboExpanded/master/res/icon.png",
-    "DownloadLinkInstall": "https://github.com/Shinoyami/XIVComboExpanded/releases/download/sage-alt-v2.0.6.3/XIVComboExpanded-Alt-2.0.6.3.zip",
-    "DownloadLinkUpdate": "https://github.com/Shinoyami/XIVComboExpanded/releases/download/sage-alt-v2.0.6.3/XIVComboExpanded-Alt-2.0.6.3.zip",
-    "DownloadLinkTesting": "https://github.com/Shinoyami/XIVComboExpanded/releases/download/sage-alt-v2.0.6.3/XIVComboExpanded-Alt-2.0.6.3.zip",
-    "TestingAssemblyVersion": "2.0.6.3",
-    "Changelog": "Fixes Sage Phlegma replacement range enforcement by checking whether the current target is valid and in range for the level-appropriate Phlegma action."
+    "DownloadLinkInstall": "https://github.com/Shinoyami/XIVComboExpanded/releases/download/sage-alt-v2.0.6.4/XIVComboExpanded-Alt-2.0.6.4.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/XIVComboExpanded/releases/download/sage-alt-v2.0.6.4/XIVComboExpanded-Alt-2.0.6.4.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/XIVComboExpanded/releases/download/sage-alt-v2.0.6.4/XIVComboExpanded-Alt-2.0.6.4.zip",
+    "TestingAssemblyVersion": "2.0.6.4",
+    "Changelog": "Adds an optional Gunbreaker Bow Shock replacement with the level-appropriate Danger Zone or Blasting Zone whenever available."
   }
 ]
