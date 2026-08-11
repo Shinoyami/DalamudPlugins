@@ -1824,7 +1824,7 @@ internal static class BuiltInPresets
             Category = "Ultimate",
             ContentFinderConditionId = 1094u,
             IsBuiltIn = true,
-            PresetRevision = 11,
+            PresetRevision = 12,
             ScheduleOffsetSeconds = 1,
             SourceUrl = "https://docs.google.com/spreadsheets/d/10C3ytfH3irHqkb45rchIq5oqdAs-v_OKTj57M-Twi3k/edit?usp=sharing",
             PresetStatus = "PF / Ikuya / NAUR mitigation assignments with one-shot phase anchoring.",
@@ -1833,8 +1833,8 @@ internal static class BuiltInPresets
                 new FightPhase { Name = "P1 Kefka", Key = "P1 Kefka", StartSeconds = 0 },
                 new FightPhase { Name = "P2 Forsaken Kefka", Key = "P2 Forsaken Kefka", StartSeconds = 197 },
                 new FightPhase { Name = "P3 Chaos & Exdeath", Key = "P3 Chaos & Exdeath", StartSeconds = 382 },
-                // The source timeline intentionally places the first P4 cast at 995 because the
-                // preceding boss-kill downtime varies. Map that cast to MitPlan's 12:25 anchor.
+                // The source timeline synchronizes P4 from the cast start at 995 because the
+                // preceding boss-kill downtime varies.
                 new FightPhase { Name = "P4 Kefka Says", Key = "P4 Kefka Says", StartSeconds = 734, EncounterTimelineStartSeconds = 984 },
                 new FightPhase { Name = "P5 Kefka Reimagined", Key = "P5 Kefka Reimagined", StartSeconds = 862 },
             ],
@@ -1843,8 +1843,7 @@ internal static class BuiltInPresets
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49740u, TimelineSeconds = 215, Name = "P2 Ultimate Embrace", RequiredPhase = "P1 Kefka", ResultPhase = "P2 Forsaken Kefka", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49890u, TimelineSeconds = 427, Name = "P3 first The Decisive Battle (Chaos)", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49891u, TimelineSeconds = 427, Name = "P3 first The Decisive Battle (Exdeath)", RequiredPhase = "P2 Forsaken Kefka", ResultPhase = "P3 Chaos & Exdeath", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49884u, TimelineSeconds = 745, Name = "P4 Kefka Says", RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "P4 Kefka Says", SuppressSeconds = 0 },
-                new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 49884u, TimelineSeconds = 750, Name = "P4 Kefka Says resolved fallback", RequiredPhase = "P3 Chaos & Exdeath", ResultPhase = "P4 Kefka Says", SuppressSeconds = 0 },
+                new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 49884u, Occurrence = 1, TimelineSeconds = 745, Name = "P4 first Kefka Says", ResultPhase = "P4 Kefka Says", SuppressSeconds = 0 },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.Ability, EventId = 50173u, TimelineSeconds = 867, Name = "P5 Kefka transition", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0, PhaseOnly = true },
                 new TimelineSyncTrigger { EventType = TimelineSyncEventType.CastStart, EventId = 47936u, TimelineSeconds = 906, Name = "P5 Ultima Repeater", RequiredPhase = "P4 Kefka Says", ResultPhase = "P5 Kefka Reimagined", SuppressSeconds = 0 },
                 ..TimelineAnchors.For("dmu"),
