@@ -6,7 +6,7 @@ namespace MitPlan;
 
 public sealed class Configuration : IPluginConfiguration
 {
-    public int Version { get; set; } = 15;
+    public int Version { get; set; } = 16;
     public string SelectedFightId { get; set; } = "dmu";
     public List<FightPlan> Fights { get; set; } = [FightPlan.CreateDefault()];
     public string SelectedJob { get; set; } = "WAR";
@@ -30,6 +30,7 @@ public sealed class Configuration : IPluginConfiguration
     public bool TestFightTimeline { get; set; }
     public float FightTimelineOpacity { get; set; } = 1f;
     public float FightTimelineBackgroundOpacity { get; set; } = 1f;
+    public bool EnableDiagnosticLog { get; set; }
 
     public void Migrate()
     {
@@ -83,7 +84,7 @@ public sealed class Configuration : IPluginConfiguration
             OverlayTextColor[index] = Math.Clamp(OverlayTextColor[index], 0f, 1f);
             OverlayGlowColor[index] = Math.Clamp(OverlayGlowColor[index], 0f, 1f);
         }
-        Version = 15;
+        Version = 16;
     }
 
     private static string RenameHealerRole(string role) => role switch

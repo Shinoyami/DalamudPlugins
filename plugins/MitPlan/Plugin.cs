@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
@@ -74,6 +76,9 @@ public sealed class Plugin : IDalamudPlugin
     private readonly Dictionary<uint, DateTime> missingActorSince = [];
     private readonly HashSet<string> firedStateTransitions = [];
     private readonly HashSet<string> playedAudioAlerts = [];
+    private readonly HashSet<string> loggedAlerts = [];
+    private readonly Dictionary<uint, string> actionNames = [];
+    private readonly object diagnosticLogLock = new();
     private string currentPhase = string.Empty;
     private string lastSyncStatus = string.Empty;
 
@@ -99,6 +104,7 @@ public sealed class Plugin : IDalamudPlugin
         configuration = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         configuration.Migrate();
         Save();
+        WriteDiagnosticLog("SESSION", $"MitPlan {GetType().Assembly.GetName().Version}; logging enabled; selected fight={SelectedFight.Id}; job={configuration.SelectedJob}; role={configuration.SelectedRole}");
 
         importFightProvider = pluginInterface.GetIpcProvider<string, bool>("MitPlan.ImportFightJson");
         importFightProvider.RegisterFunc(ImportFightJson);
@@ -195,6 +201,8 @@ public sealed class Plugin : IDalamudPlugin
     {
         CheckForEncounterEntry();
         var inCombat = condition[ConditionFlag.InCombat];
+        if (inCombat != wasInCombat)
+            WriteDiagnosticLog("COMBAT", $"InCombat {wasInCombat} -> {inCombat}; phase={PhaseForLog()}; clock={ClockForLog()}");
         if (inCombat && !wasInCombat && IsSelectedFightActive())
         {
             StopTimer();
@@ -203,6 +211,8 @@ public sealed class Plugin : IDalamudPlugin
             if (!string.IsNullOrEmpty(currentPhase))
                 syncedPhaseAnchors.Add(currentPhase);
             lastSyncStatus = "P1 encounter clock synchronized to combat start.";
+            WriteDiagnosticLog("CLOCK",
+                $"Combat start initialized; plugin={GetType().Assembly.GetName().Version}; content={CurrentContentFinderConditionId()}; job={configuration.SelectedJob}; role={configuration.SelectedRole}; cotank={configuration.SelectedCoTankJob}");
         }
         else if (!inCombat && wasInCombat && !debugTimelineRunning)
             StopTimer();
@@ -233,6 +243,7 @@ public sealed class Plugin : IDalamudPlugin
             missingActorSince.Clear();
             firedStateTransitions.Clear();
             playedAudioAlerts.Clear();
+            loggedAlerts.Clear();
         }
         wasInCombat = inCombat;
     }
@@ -279,6 +290,7 @@ public sealed class Plugin : IDalamudPlugin
         missingActorSince.Clear();
         firedStateTransitions.Clear();
         playedAudioAlerts.Clear();
+        loggedAlerts.Clear();
     }
 
     private void AdvanceDmuP2AtTimelineBoundary()
@@ -290,6 +302,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
         currentPhase = p2.Key;
         lastSyncStatus = "DMU P2 timeline activated at the P1 untargetable boundary; waiting for its precision anchor.";
+        WriteDiagnosticLog("PHASE", $"Activated {currentPhase} at the configured P2 boundary");
     }
 
     private void CheckActorStateTransitions()
@@ -347,6 +360,8 @@ public sealed class Plugin : IDalamudPlugin
             currentPhase = transition.ResultPhase;
             firedStateTransitions.Add(key);
             lastSyncStatus = $"Detected {transition.ResultPhase}; waiting for its first phase anchor.";
+            WriteDiagnosticLog("PHASE",
+                $"Activated {currentPhase} from actor transition {transition.Condition}; timeline target={transition.TimelineSeconds:0.###}");
         }
     }
 
@@ -363,6 +378,8 @@ public sealed class Plugin : IDalamudPlugin
                 current.Add(key);
                 if (activeCasts.Contains(key))
                     continue;
+                WriteDiagnosticLog("CAST",
+                    $"action={ActionName(battleChara.CastActionId)} (0x{battleChara.CastActionId:X}); source={battleChara.Name}; sourceBaseId=0x{battleChara.BaseId:X}");
                 ProcessSyncEvent(TimelineSyncEventType.CastStart, battleChara.CastActionId);
             }
             catch (NullReferenceException)
@@ -410,10 +427,17 @@ public sealed class Plugin : IDalamudPlugin
     {
         var encounterTimelineSynced = eventType == TimelineSyncEventType.CastStart &&
                                       ProcessEncounterTimelineSyncEvent(eventType, eventId);
-        var candidates = SelectedFight.SyncTriggers
+        var definedTriggers = SelectedFight.SyncTriggers
             .Where(item => item.EventType == eventType && item.EventId == eventId)
+            .ToList();
+        if (definedTriggers.Count > 0)
+            WriteDiagnosticLog("ANCHOR EVENT",
+                $"{eventType} 0x{eventId:X}; phase={PhaseForLog()}; clock={ClockForLog()}; definitions={definedTriggers.Count}");
+        var phaseCandidates = definedTriggers
             .Where(item => string.IsNullOrEmpty(item.RequiredPhase) ||
                            currentPhase == item.RequiredPhase || currentPhase == item.ResultPhase)
+            .ToList();
+        var candidates = phaseCandidates
             .Where(item => item.MatchWindowSeconds <= 0 || encounterTimelineStartedAt is not null &&
                            Math.Abs(ElapsedSeconds - item.TimelineSeconds) <= item.MatchWindowSeconds)
             .OrderBy(item => string.IsNullOrEmpty(item.ResultPhase) ? 1 : 0)
@@ -421,6 +445,24 @@ public sealed class Plugin : IDalamudPlugin
             // nearest point can skip forward when one action ID repeats rapidly.
             .ThenBy(item => item.TimelineSeconds)
             .ToList();
+
+        if (definedTriggers.Count > 0 && candidates.Count == 0)
+        {
+            if (phaseCandidates.Count == 0)
+            {
+                var requirements = string.Join(", ", definedTriggers.Select(item =>
+                    string.IsNullOrEmpty(item.RequiredPhase) ? "any phase" : item.RequiredPhase));
+                WriteDiagnosticLog("ANCHOR REJECTED",
+                    $"{eventType} 0x{eventId:X}; reason=phase mismatch; current={PhaseForLog()}; required={requirements}");
+            }
+            else
+            {
+                var windows = string.Join(", ", phaseCandidates.Select(item =>
+                    $"{item.Name}: target={item.TimelineSeconds:0.###} +/-{item.MatchWindowSeconds}s"));
+                WriteDiagnosticLog("ANCHOR REJECTED",
+                    $"{eventType} 0x{eventId:X}; reason=outside match window or clock stopped; clock={ClockForLog()}; windows={windows}");
+            }
+        }
 
         foreach (var trigger in candidates)
         {
@@ -430,12 +472,24 @@ public sealed class Plugin : IDalamudPlugin
                 : !string.IsNullOrEmpty(trigger.RequiredPhase)
                     ? trigger.RequiredPhase
                     : currentPhase;
-            if (firedSyncTriggers.Contains(key) || syncedPhaseAnchors.Contains(anchorPhase))
+            if (firedSyncTriggers.Contains(key))
+            {
+                WriteDiagnosticLog("ANCHOR SKIPPED", $"{trigger.Name}; reason=trigger already fired");
                 continue;
+            }
+            if (syncedPhaseAnchors.Contains(anchorPhase))
+            {
+                WriteDiagnosticLog("ANCHOR SKIPPED", $"{trigger.Name}; reason=phase {anchorPhase} already synchronized");
+                continue;
+            }
             var observedOccurrence = observedSyncOccurrences.GetValueOrDefault(key) + 1;
             observedSyncOccurrences[key] = observedOccurrence;
             if (observedOccurrence < Math.Max(1, trigger.Occurrence))
+            {
+                WriteDiagnosticLog("ANCHOR WAIT",
+                    $"{trigger.Name}; occurrence={observedOccurrence}/{Math.Max(1, trigger.Occurrence)}");
                 continue;
+            }
             if (trigger.SuppressSeconds > 0 && lastTriggerTimes.TryGetValue(key, out var last) &&
                 DateTime.UtcNow - last < TimeSpan.FromSeconds(trigger.SuppressSeconds))
                 continue;
@@ -453,6 +507,7 @@ public sealed class Plugin : IDalamudPlugin
                 lastTriggerTimes[key] = DateTime.UtcNow;
                 currentPhase = trigger.ResultPhase;
                 lastSyncStatus = $"Detected {currentPhase}; waiting for its first cast anchor.";
+                WriteDiagnosticLog("PHASE", $"Activated {currentPhase} from {trigger.Name}; phase-only event");
                 continue;
             }
 
@@ -476,6 +531,8 @@ public sealed class Plugin : IDalamudPlugin
         if (!encounterTimelineSynced || !string.IsNullOrEmpty(resultPhase))
             encounterTimelineStartedAt = DateTime.UtcNow - TimeSpan.FromSeconds(timelineSeconds + elapsedSinceObservation);
         lastSyncStatus = $"Auto-synced {currentPhase} encounter clock at {FormatTime(ElapsedSeconds)} from {name} ({eventType} 0x{eventId:X}).";
+        WriteDiagnosticLog("SYNC",
+            $"{name}; event={eventType} 0x{eventId:X}; phase={PhaseForLog()}; timeline={timelineSeconds:0.###}; clock={ClockForLog()}");
     }
 
     private void StartTimer(int elapsedSeconds)
@@ -515,8 +572,10 @@ public sealed class Plugin : IDalamudPlugin
         firedEncounterTimelineSyncs.Add(candidate.Id);
         if (!string.IsNullOrEmpty(currentPhase))
             syncedPhaseAnchors.Add(currentPhase);
-        encounterTimelineStartedAt = DateTime.UtcNow -
-                                     TimeSpan.FromSeconds(EncounterTimelineLinker.EventTime(SelectedFight, candidate, syncTarget: true));
+        var syncTarget = EncounterTimelineLinker.EventTime(SelectedFight, candidate, syncTarget: true);
+        encounterTimelineStartedAt = DateTime.UtcNow - TimeSpan.FromSeconds(syncTarget);
+        WriteDiagnosticLog("TIMELINE SYNC",
+            $"{candidate.Name}; event={eventType} 0x{eventId:X}; entry={candidate.TimeSeconds:0.###}; target={syncTarget:0.###}; id={candidate.Id}");
         return true;
     }
 
@@ -525,6 +584,59 @@ public sealed class Plugin : IDalamudPlugin
         : Math.Max(0, (int)(DateTime.UtcNow - encounterTimelineStartedAt.Value).TotalSeconds);
 
     private void Save() => pluginInterface.SavePluginConfig(configuration);
+
+    private string ActionName(uint actionId)
+    {
+        if (actionNames.TryGetValue(actionId, out var cached))
+            return cached;
+        try
+        {
+            var name = dataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>()
+                .Where(row => row.RowId == actionId)
+                .Select(row => row.Name.ToString())
+                .FirstOrDefault();
+            cached = string.IsNullOrWhiteSpace(name) ? $"Action 0x{actionId:X}" : name;
+        }
+        catch
+        {
+            cached = $"Action 0x{actionId:X}";
+        }
+        actionNames[actionId] = cached;
+        return cached;
+    }
+
+    private string DiagnosticLogPath => Path.Combine(pluginInterface.GetPluginConfigDirectory(), "MitPlan-diagnostic.log");
+
+    private string PhaseForLog() => string.IsNullOrEmpty(currentPhase) ? "<none>" : currentPhase;
+
+    private string ClockForLog() => encounterTimelineStartedAt is null
+        ? "stopped"
+        : $"{EncounterTimelineElapsedSeconds:0.000}s";
+
+    private void WriteDiagnosticLog(string category, string message)
+    {
+        var currentContentId = CurrentContentFinderConditionId();
+        var supportedFight = FindSupportedFight(currentContentId);
+        if (!configuration.EnableDiagnosticLog || currentContentId == 0 || supportedFight is null ||
+            supportedFight.Id != SelectedFight.Id || !IsSelectedFightActive())
+            return;
+        try
+        {
+            lock (diagnosticLogLock)
+            {
+                Directory.CreateDirectory(pluginInterface.GetPluginConfigDirectory());
+                var path = DiagnosticLogPath;
+                if (File.Exists(path) && new FileInfo(path).Length > 5 * 1024 * 1024)
+                    File.Move(path, path + ".previous", true);
+                var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff zzz} [{category}] fight={SelectedFight.Id} phase={PhaseForLog()} clock={ClockForLog()} | {message}{Environment.NewLine}";
+                File.AppendAllText(path, line);
+            }
+        }
+        catch
+        {
+            // Diagnostics must never interfere with encounter processing.
+        }
+    }
 
     private void Draw()
     {
@@ -611,6 +723,8 @@ public sealed class Plugin : IDalamudPlugin
             configuration.SelectedJob = selectedJob;
             configuration.SelectedRole = selectedRole;
             Save();
+            WriteDiagnosticLog("PLAYER",
+                $"Selection changed; job={configuration.SelectedJob}; role={configuration.SelectedRole}; cotank={configuration.SelectedCoTankJob}");
         }
     }
 
@@ -655,6 +769,8 @@ public sealed class Plugin : IDalamudPlugin
         configuration.SelectedFightId = fight.Id;
         encounterSetupFightId = fight.Id;
         Save();
+        WriteDiagnosticLog("ENCOUNTER",
+            $"Selected supported fight; content={CurrentContentFinderConditionId()}; name={fight.Name}; job={configuration.SelectedJob}; role={configuration.SelectedRole}");
     }
 
     private FightPlan? FindSupportedFight(uint contentFinderConditionId)
@@ -1157,6 +1273,56 @@ public sealed class Plugin : IDalamudPlugin
         ImGui.Text($"Encounter time: {FormatTime(ElapsedSeconds)}");
         if (!string.IsNullOrWhiteSpace(lastSyncStatus))
             ImGui.TextColored(new Vector4(0.35f, 0.9f, 0.45f, 1f), lastSyncStatus);
+        ImGui.Separator();
+        var enableDiagnosticLog = configuration.EnableDiagnosticLog;
+        if (ImGui.Checkbox("Enable encounter diagnostic log", ref enableDiagnosticLog))
+        {
+            configuration.EnableDiagnosticLog = enableDiagnosticLog;
+            Save();
+            if (enableDiagnosticLog)
+                WriteDiagnosticLog("SESSION",
+                    $"Logging enabled; plugin={GetType().Assembly.GetName().Version}; job={configuration.SelectedJob}; role={configuration.SelectedRole}; cotank={configuration.SelectedCoTankJob}");
+        }
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Records synchronization, phase, combat, and mitigation-callout events only while a supported selected duty is active.");
+        if (configuration.EnableDiagnosticLog)
+        {
+            if (ImGui.Button("Open log folder"))
+            {
+                try
+                {
+                    Directory.CreateDirectory(pluginInterface.GetPluginConfigDirectory());
+                    Process.Start(new ProcessStartInfo("explorer.exe", pluginInterface.GetPluginConfigDirectory())
+                    {
+                        UseShellExecute = true,
+                    });
+                }
+                catch (Exception exception)
+                {
+                    WriteDiagnosticLog("ERROR", $"Could not open log folder: {exception.GetType().Name}: {exception.Message}");
+                }
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Copy log path"))
+                ImGui.SetClipboardText(DiagnosticLogPath);
+            ImGui.SameLine();
+            if (ImGui.Button("Clear log"))
+            {
+                try
+                {
+                    lock (diagnosticLogLock)
+                    {
+                        if (File.Exists(DiagnosticLogPath))
+                            File.Delete(DiagnosticLogPath);
+                    }
+                    WriteDiagnosticLog("SESSION", "Log cleared");
+                }
+                catch
+                {
+                    // The game may briefly hold the file while another program opens it.
+                }
+            }
+        }
     }
 
     private void DrawFightTimelineOverlay()
@@ -1246,7 +1412,10 @@ public sealed class Plugin : IDalamudPlugin
         // The positioning/style preview is visual-only. Debug timeline playback
         // and live encounter alerts still use the configured sound or TTS mode.
         if (!configuration.TestOverlay)
+        {
+            LogActiveAlerts(active);
             TriggerAlertAudio(active);
+        }
 
         ImGui.SetNextWindowSize(new Vector2(260, 0), ImGuiCond.FirstUseEver);
         ImGui.SetNextWindowBgAlpha(configuration.OverlayBackgroundOpacity);
@@ -1303,6 +1472,20 @@ public sealed class Plugin : IDalamudPlugin
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
         PlayConfiguredAudio(skills);
+    }
+
+    private void LogActiveAlerts(IEnumerable<SkillAlert> active)
+    {
+        foreach (var alert in active)
+        {
+            var targetTime = MitigationTime(alert.Item);
+            var key = $"{SelectedFight.Id}:{alert.Item.Id}:{targetTime:0.###}:{alert.Skill}";
+            if (!loggedAlerts.Add(key))
+                continue;
+            var lead = MitigationTimings.LeadSeconds(alert.Skill, configuration.LeadSeconds);
+            WriteDiagnosticLog("CALLOUT",
+                $"mode={(debugTimelineRunning ? "debug" : "live")}; skill={alert.Skill}; mechanic={alert.Item.Note}; target={targetTime:0.###}; lead={lead}s; job={configuration.SelectedJob}; role={configuration.SelectedRole}");
+        }
     }
 
     private void PlayConfiguredAudio(IReadOnlyCollection<string> skills)
