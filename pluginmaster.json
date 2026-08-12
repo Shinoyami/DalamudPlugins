@@ -83,7 +83,7 @@
     "Author": "attick, daemitus, Khayle, Shinoyami",
     "Name": "XIV Combo Expanded - Alt version",
     "InternalName": "XIVComboExpanded",
-    "AssemblyVersion": "2.0.6.7",
+    "AssemblyVersion": "2.0.6.8",
     "Description": "Alternative XIV Combo Expanded build with additional Sage, Gunbreaker, and Dark Knight options.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -99,10 +99,10 @@
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Shinoyami/XIVComboExpanded",
     "IconUrl": "https://raw.githubusercontent.com/Shinoyami/XIVComboExpanded/master/res/icon.png",
-    "DownloadLinkInstall": "https://github.com/Shinoyami/XIVComboExpanded/releases/download/sage-alt-v2.0.6.7/XIVComboExpanded-Alt-2.0.6.7.zip",
-    "DownloadLinkUpdate": "https://github.com/Shinoyami/XIVComboExpanded/releases/download/sage-alt-v2.0.6.7/XIVComboExpanded-Alt-2.0.6.7.zip",
-    "DownloadLinkTesting": "https://github.com/Shinoyami/XIVComboExpanded/releases/download/sage-alt-v2.0.6.7/XIVComboExpanded-Alt-2.0.6.7.zip",
-    "TestingAssemblyVersion": "2.0.6.7",
-    "Changelog": "Enforces Sage Phlegma replacement range using both the native action-range check and an explicit six-yalm target-distance limit."
+    "DownloadLinkInstall": "https://github.com/Shinoyami/XIVComboExpanded/releases/download/sage-alt-v2.0.6.8/XIVComboExpanded-Alt-2.0.6.8.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/XIVComboExpanded/releases/download/sage-alt-v2.0.6.8/XIVComboExpanded-Alt-2.0.6.8.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/XIVComboExpanded/releases/download/sage-alt-v2.0.6.8/XIVComboExpanded-Alt-2.0.6.8.zip",
+    "TestingAssemblyVersion": "2.0.6.8",
+    "Changelog": "Prioritizes Sage Auto Eukrasian Dosis refresh over Psyche and burst or overcap Phlegma on the Dosis button."
   }
 ]
