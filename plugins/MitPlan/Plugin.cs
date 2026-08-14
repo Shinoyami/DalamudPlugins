@@ -431,7 +431,7 @@ public sealed class Plugin : IDalamudPlugin
             .Where(item => item.EventType == eventType && item.EventId == eventId)
             .ToList();
         if (definedTriggers.Count > 0)
-            WriteDiagnosticLog("ANCHOR EVENT",
+            WriteDiagnosticLog(definedTriggers.All(item => item.PhaseOnly) ? "PHASE EVENT" : "ANCHOR EVENT",
                 $"{eventType} 0x{eventId:X}; phase={PhaseForLog()}; clock={ClockForLog()}; definitions={definedTriggers.Count}");
         var phaseCandidates = definedTriggers
             .Where(item => string.IsNullOrEmpty(item.RequiredPhase) ||

@@ -33,7 +33,7 @@
     "Author": "Shinoyami",
     "Name": "MitPlan",
     "InternalName": "MitPlan",
-    "AssemblyVersion": "1.3.0.8",
+    "AssemblyVersion": "1.3.0.9",
     "Description": "Displays editable job/role-specific mitigation reminders using default plans based on PF, Ikuya, and NAUR mitigation strategies where available.",
     "ApplicableVersion": "any",
     "DalamudApiLevel": 15,
@@ -48,11 +48,11 @@
     "IsTestingExclusive": false,
     "AcceptsFeedback": true,
     "RepoUrl": "https://github.com/Shinoyami/DalamudPlugins",
-    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.3.0.8/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.3.0.8/latest.zip",
-    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.3.0.8/latest.zip",
-    "TestingAssemblyVersion": "1.3.0.8",
-    "Changelog": "Adds supported-encounter diagnostic logging for casts, phase anchors, synchronization, and mitigation callouts. Fixes DMU P5 activation by anchoring it on the first Ultima Repeater cast."
+    "DownloadLinkInstall": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.3.0.9/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.3.0.9/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Shinoyami/DalamudPlugins/releases/download/MitPlan-v1.3.0.9/latest.zip",
+    "TestingAssemblyVersion": "1.3.0.9",
+    "Changelog": "Stops re-anchoring the DMU encounter clock at P4. The first Kefka Says now changes only the active phase, preserving the timeline established in P3."
   },
   {
     "Author": "Shinoyami",
